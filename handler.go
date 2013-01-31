@@ -1,7 +1,6 @@
 package httpize
 
 import (
-	"bufio"
 	"io"
 	"log"
 	"net/http"
@@ -28,7 +27,26 @@ func NewHandler(api ApiProvider) *HttpHandler {
 	h.api = api
 	h.methods = make(ApiMethods)
 
-	h.api.Httpize(h.methods)
+	if h.api != nil {
+		h.api.Httpize(h.methods)
+	}
+
+	for methodName, _ := range h.methods {
+		v := reflect.ValueOf(h.api)
+		if v.Kind() == reflect.Invalid {
+			//panic
+		}
+		m := v.MethodByName(methodName)
+		if m.Kind() != reflect.Func {
+			//panic
+		}
+		if m.Type().NumOut() != 2 ||
+			m.Type().Out(0).Name() != "Reader" ||
+			m.Type().Out(1).Name() != "error" {
+			//panic
+		}
+	}
+
 	return h
 }
 
@@ -58,32 +76,34 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		log.Printf("Method %s not defined (URL: %s)", methodName, req.URL.String())
 		return
 	}
+	numParams := len(methodDef.paramName)
 
 	getParamCount := 0
-	foundArgs := 0
-	var argRval [10]reflect.Value
-	for i := 0; i < len(methodDef.paramName); i++ {
-		paramName := methodDef.paramName[i]
-		if _, ok := getParam[paramName]; ok {
-			arg := methodDef.newArgFunc[i](getParam[paramName][0])
-			err := arg.Check()
-			if err != nil {
-				FiveHundredError(resp)
-				log.Printf(
-					"Method %s, %s argument error %s",
-					methodName,
-					paramName,
-					err,
-				)
-				return
-			}
-			argRval[i] = reflect.ValueOf(arg)
-			foundArgs++
+	for _, v := range getParam {
+		for i := 0; i < len(v); i++ {
+			getParamCount++
 		}
-		getParamCount += len(getParam[paramName])
 	}
 
-	if getParamCount != len(methodDef.paramName) || foundArgs != len(methodDef.paramName) {
+	foundArgs := 0
+	var argRval [10]reflect.Value
+	for i := 0; i < numParams; i++ {
+		paramName := methodDef.paramName[i]
+		if _, ok := getParam[paramName]; !ok {
+			break
+		}
+		arg := methodDef.newArgFunc[i](getParam[paramName][0])
+		err := arg.Check()
+		if err != nil {
+			FiveHundredError(resp)
+			log.Printf("Method %s '%s' parameter error: %s", methodName, paramName, err)
+			return
+		}
+		argRval[i] = reflect.ValueOf(arg)
+		foundArgs++
+	}
+
+	if foundArgs != numParams || foundArgs != getParamCount {
 		FiveHundredError(resp)
 		log.Printf(
 			"Method %s(%s) called incorrectly (URL: %s)",
@@ -95,10 +115,9 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	m := reflect.ValueOf(a.api).MethodByName(methodName)
-	r := m.Call(argRval[0:foundArgs])
+	r := m.Call(argRval[0:numParams])
 
 	reader := r[0].Interface().(io.Reader)
-	err = r[1].Interface().(error)
 
 	if err != nil {
 		FiveHundredError(resp)
@@ -106,7 +125,7 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	_, err = io.Copy(resp, bufio.NewReader(reader))
+	_, err = io.Copy(resp, reader)
 	if err != nil {
 		FiveHundredError(resp)
 		log.Print(err)
@@ -120,5 +139,6 @@ func (a ApiMethods) Add(methodName string, paramNames []string, newArgFuncs []Ne
 	if len(newArgFuncs) > 10 {
 		//panic
 	}
+
 	a[methodName] = &apiMethod{paramNames, newArgFuncs}
 }
