@@ -30,16 +30,12 @@ func (t *TestApiProvider) Httpize(methods ApiMethods) {
 	methods.Add("Greeting", []string{}, []NewArgFunc{})
 }
 
-func (t *TestApiProvider) GetHttpSettings() *Settings {
-	return nil
+func (t *TestApiProvider) Echo(name TestArgType) (io.Reader, *Settings, error) {
+	return bytes.NewBufferString("Echo " + string(name)), nil, nil
 }
 
-func (t *TestApiProvider) Echo(name TestArgType) (io.Reader, error) {
-	return bytes.NewBufferString("Echo " + string(name)), nil
-}
-
-func (t *TestApiProvider) Greeting() (io.Reader, error) {
-	return bytes.NewBufferString("Hello World"), nil
+func (t *TestApiProvider) Greeting() (io.Reader, *Settings, error) {
+	return bytes.NewBufferString("Hello World"), nil, nil
 }
 
 func checkCode(t *testing.T, r *httptest.ResponseRecorder, code int) {
@@ -112,10 +108,6 @@ type TestApiProviderPanic struct{}
 
 func (t *TestApiProviderPanic) Httpize(methods ApiMethods) {
 	methods.Add("Echo", []string{"name"}, []NewArgFunc{NewTestArgType})
-}
-
-func (t *TestApiProviderPanic) GetHttpSettings() *Settings {
-	return nil
 }
 
 func (t *TestApiProviderPanic) Echo(name TestArgType) (int, error) {

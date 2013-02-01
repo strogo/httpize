@@ -1,6 +1,7 @@
 package httpize
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -40,10 +41,14 @@ func NewHandler(api ApiProvider) *HttpHandler {
 		if m.Kind() != reflect.Func {
 			panic("ApiMethod not func")
 		}
-		if m.Type().NumOut() != 2 ||
-			m.Type().Out(0).Name() != "Reader" ||
-			m.Type().Out(1).Name() != "error" {
-			panic("ApiMethod does not return (io.Reader, error)")
+		if m.Type().NumOut() != 3 ||
+			m.Type().Out(0).String() != "io.Reader" ||
+			m.Type().Out(1).String() != "*httpize.Settings" ||
+			m.Type().Out(2).String() != "error" {
+			panic(fmt.Sprintf(
+				"ApiMethod %s does not return (io.Reader, *httpize.Settings, error)",
+				methodName,
+			))
 		}
 	}
 
@@ -118,7 +123,8 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	r := m.Call(argRval[0:numParams])
 
 	reader := r[0].Interface().(io.Reader)
-	errVal := r[1].Interface()
+	//	settings := r[1].Interface().(io.Settings)
+	errVal := r[2].Interface()
 
 	if errVal != nil {
 		FiveHundredError(resp)

@@ -2,7 +2,6 @@ package httpize
 
 type ApiProvider interface {
 	Httpize(methods ApiMethods)
-	GetHttpSettings() *Settings
 }
 
 type ArgType interface {
