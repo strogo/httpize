@@ -49,7 +49,7 @@ func checkCode(t *testing.T, r *httptest.ResponseRecorder, code int) {
 	t.Logf("%d %v %s", r.Code, r.HeaderMap, r.Body)
 }
 
-func TestHttpize(t *testing.T) {
+func TestTestApiProvider(t *testing.T) {
 	var a TestApiProvider
 	h := NewHandler(&a)
 
@@ -106,4 +106,33 @@ func TestHttpize(t *testing.T) {
 	h.ServeHTTP(recorder, request)
 	checkCode(t, recorder, 200)
 
+}
+
+type TestApiProviderPanic struct{}
+
+func (t *TestApiProviderPanic) Httpize(methods ApiMethods) {
+	methods.Add("Echo", []string{"name"}, []NewArgFunc{NewTestArgType})
+}
+
+func (t *TestApiProviderPanic) GetHttpSettings() *Settings {
+	return nil
+}
+
+func (t *TestApiProviderPanic) Echo(name TestArgType) (int, error) {
+	return 42, nil
+}
+
+func TestTestApiProviderPanic(t *testing.T) {
+	var a TestApiProviderPanic
+	var err interface{} = nil
+	func() {
+		defer func() {
+			err = recover()
+		}()
+		NewHandler(&a)
+	}()
+	if err == nil {
+		t.Fatal("Panic expected but didn't happen.")
+	}
+	t.Logf("Panic happend %v", err)
 }

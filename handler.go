@@ -34,16 +34,16 @@ func NewHandler(api ApiProvider) *HttpHandler {
 	for methodName, _ := range h.methods {
 		v := reflect.ValueOf(h.api)
 		if v.Kind() == reflect.Invalid {
-			//panic
+			panic("ApiProvider not valid")
 		}
 		m := v.MethodByName(methodName)
 		if m.Kind() != reflect.Func {
-			//panic
+			panic("ApiMethod not func")
 		}
 		if m.Type().NumOut() != 2 ||
 			m.Type().Out(0).Name() != "Reader" ||
 			m.Type().Out(1).Name() != "error" {
-			//panic
+			panic("ApiMethod does not return (io.Reader, error)")
 		}
 	}
 
@@ -118,10 +118,11 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	r := m.Call(argRval[0:numParams])
 
 	reader := r[0].Interface().(io.Reader)
+	errVal := r[1].Interface()
 
-	if err != nil {
+	if errVal != nil {
 		FiveHundredError(resp)
-		log.Print(err)
+		log.Print(errVal.(error))
 		return
 	}
 
@@ -134,10 +135,10 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 func (a ApiMethods) Add(methodName string, paramNames []string, newArgFuncs []NewArgFunc) {
 	if len(paramNames) != len(newArgFuncs) {
-		//panic
+		panic("Add method fail, paramNames and newArgFuncs array have different length")
 	}
 	if len(newArgFuncs) > 10 {
-		//panic
+		panic("Add method fail, too many parameters (>10)")
 	}
 
 	a[methodName] = &apiMethod{paramNames, newArgFuncs}
