@@ -28,6 +28,7 @@ type TestApiProvider struct{}
 func (t *TestApiProvider) Httpize(methods ApiMethods) {
 	methods.Add("Echo", []string{"name"}, []NewArgFunc{NewTestArgType})
 	methods.Add("Greeting", []string{}, []NewArgFunc{})
+	methods.Add("ThreeOhThree", []string{}, []NewArgFunc{})
 }
 
 func (t *TestApiProvider) Echo(name TestArgType) (io.Reader, *Settings, error) {
@@ -36,6 +37,11 @@ func (t *TestApiProvider) Echo(name TestArgType) (io.Reader, *Settings, error) {
 
 func (t *TestApiProvider) Greeting() (io.Reader, *Settings, error) {
 	return bytes.NewBufferString("Hello World"), nil, nil
+}
+
+func (t *TestApiProvider) ThreeOhThree() (io.Reader, *Settings, error) {
+	err := Non500Error{303, "See Other", "http://lookhere"}
+	return nil, nil, err
 }
 
 func checkCode(t *testing.T, r *httptest.ResponseRecorder, code int) {
@@ -102,6 +108,10 @@ func TestTestApiProvider(t *testing.T) {
 	h.ServeHTTP(recorder, request)
 	checkCode(t, recorder, 200)
 
+	recorder = httptest.NewRecorder()
+	request, _ = http.NewRequest("GET", "http://host/ThreeOhThree", nil)
+	h.ServeHTTP(recorder, request)
+	checkCode(t, recorder, 303)
 }
 
 type TestApiProviderPanic struct{}

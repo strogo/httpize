@@ -1,6 +1,7 @@
 package httpize
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io"
 	"log"
@@ -11,9 +12,9 @@ import (
 )
 
 type HttpHandler struct {
-	api      ApiProvider
-	methods  ApiMethods
-	settings *Settings
+	api             ApiProvider
+	methods         ApiMethods
+	defaultSettings Settings
 }
 
 type apiMethod struct {
@@ -55,20 +56,20 @@ func NewHandler(api ApiProvider) *HttpHandler {
 	return h
 }
 
-func FiveHundredError(resp http.ResponseWriter) {
+func fiveHundredError(resp http.ResponseWriter) {
 	http.Error(resp, "error", 500)
 }
 
 func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
-		FiveHundredError(resp)
+		fiveHundredError(resp)
 		log.Printf("Unsupported HTTP method: %s", req.Method)
 		return
 	}
 
 	getParam, err := url.ParseQuery(req.URL.RawQuery)
 	if err != nil {
-		FiveHundredError(resp)
+		fiveHundredError(resp)
 		log.Print(err)
 		return
 	}
@@ -77,7 +78,7 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	methodName := pathParts[len(pathParts)-1]
 	methodDef, ok := a.methods[methodName]
 	if !ok {
-		FiveHundredError(resp)
+		fiveHundredError(resp)
 		log.Printf("Method %s not defined (URL: %s)", methodName, req.URL.String())
 		return
 	}
@@ -100,7 +101,7 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		arg := methodDef.newArgFunc[i](getParam[paramName][0])
 		err := arg.Check()
 		if err != nil {
-			FiveHundredError(resp)
+			fiveHundredError(resp)
 			log.Printf("Method %s '%s' parameter error: %s", methodName, paramName, err)
 			return
 		}
@@ -109,7 +110,7 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	if foundArgs != numParams || foundArgs != getParamCount {
-		FiveHundredError(resp)
+		fiveHundredError(resp)
 		log.Printf(
 			"Method %s(%s) called incorrectly (URL: %s)",
 			methodName,
@@ -122,19 +123,54 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	m := reflect.ValueOf(a.api).MethodByName(methodName)
 	r := m.Call(argRval[0:numParams])
 
-	reader := r[0].Interface().(io.Reader)
-	//	settings := r[1].Interface().(io.Settings)
-	errVal := r[2].Interface()
+	errRval := r[2].Interface()
 
-	if errVal != nil {
-		FiveHundredError(resp)
-		log.Print(errVal.(error))
+	if errRval != nil {
+		non500Error, isNon500Error := errRval.(Non500Error)
+		if isNon500Error {
+			if non500Error.ErrorCode == 301 ||
+				non500Error.ErrorCode == 302 ||
+				non500Error.ErrorCode == 303 {
+				resp.Header().Set("Location", non500Error.Location)
+			}
+			http.Error(resp, non500Error.ErrorStr, non500Error.ErrorCode)
+		} else {
+			fiveHundredError(resp)
+			log.Print(errRval.(error))
+		}
 		return
 	}
 
-	_, err = io.Copy(resp, reader)
+	readerRval := r[0].Interface()
+	if readerRval == nil {
+		fiveHundredError(resp)
+		log.Printf("Method %s didnt return a reader or error", methodName)
+		return
+	}
+	reader := readerRval.(io.Reader)
+
+	var settings *Settings
+	settingsRval := r[1].Interface()
+	if settingsRval == nil || r[1] {
+		settings = &a.defaultSettings
+	} else {
+		log.Printf("%s", r[1].String())
+		settings = settingsRval.(*Settings)
+	}
+
+	var compress io.Writer
+	if settings.Gzip && strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
+		resp.Header().Set("Content-Encoding", "gzip")
+		gz := gzip.NewWriter(resp)
+		compress = gz
+		defer gz.Close()
+	} else {
+		compress = resp
+	}
+
+	_, err = io.Copy(compress, reader)
 	if err != nil {
-		FiveHundredError(resp)
+		fiveHundredError(resp)
 		log.Print(err)
 	}
 }
