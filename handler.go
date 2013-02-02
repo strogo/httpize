@@ -64,7 +64,7 @@ func fiveHundredError(resp http.ResponseWriter) {
 }
 
 func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
-	if req.Method != "GET" {
+	if req.Method != "GET" && req.Method != "POST" {
 		fiveHundredError(resp)
 		log.Printf("Unsupported HTTP method: %s", req.Method)
 		return
@@ -104,8 +104,13 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		arg := methodDef.newArgFunc[i](getParam[paramName][0])
 		err := arg.Check()
 		if err != nil {
-			fiveHundredError(resp)
-			log.Printf("Method %s '%s' parameter error: %s", methodName, paramName, err)
+			non500Error, isNon500Error := err.(Non500Error)
+			if isNon500Error {
+				non500Error.write(resp)
+			} else {
+				fiveHundredError(resp)
+				log.Printf("Method %s '%s' parameter error: %s", methodName, paramName, err)
+			}
 			return
 		}
 		argRval[i] = reflect.ValueOf(arg)
@@ -127,20 +132,10 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	r := m.Call(argRval[0:numParams])
 
 	// error can be not type error if nil for some reason
-	err, isError := r[2].Interface().(error)
-	if !isError {
-		err = nil
-	}
-	if err != nil {
+	if err, isError := r[2].Interface().(error); isError && err != nil {
 		non500Error, isNon500Error := err.(Non500Error)
 		if isNon500Error {
-			if non500Error.ErrorCode == 301 ||
-				non500Error.ErrorCode == 302 ||
-				non500Error.ErrorCode == 303 {
-				// might need to unset headers in here
-				resp.Header().Set("Location", non500Error.Location)
-			}
-			http.Error(resp, non500Error.ErrorStr, non500Error.ErrorCode)
+			non500Error.write(resp)
 		} else {
 			fiveHundredError(resp)
 			log.Print(err)
