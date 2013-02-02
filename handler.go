@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-type HttpHandler struct {
+type Handler struct {
 	provider        MethodProvider
 	methods         Methods
 	defaultSettings *Settings
@@ -25,8 +25,8 @@ type argDefs struct {
 
 type Methods map[string]*argDefs
 
-func NewHandler(provider MethodProvider) *HttpHandler {
-	h := new(HttpHandler)
+func NewHandler(provider MethodProvider) *Handler {
+	h := new(Handler)
 	h.provider = provider
 	h.methods = make(Methods)
 
@@ -63,7 +63,7 @@ func fiveHundredError(resp http.ResponseWriter) {
 	http.Error(resp, "error", 500)
 }
 
-func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" && req.Method != "POST" {
 		fiveHundredError(resp)
 		log.Printf("Unsupported HTTP method: %s", req.Method)
