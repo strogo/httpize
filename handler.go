@@ -9,12 +9,13 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"time"
 )
 
 type HttpHandler struct {
 	api             ApiProvider
 	methods         ApiMethods
-	defaultSettings Settings
+	defaultSettings *Settings
 }
 
 type apiMethod struct {
@@ -53,6 +54,8 @@ func NewHandler(api ApiProvider) *HttpHandler {
 		}
 	}
 
+	h.defaultSettings = new(Settings)
+	h.defaultSettings.SetToDefault()
 	return h
 }
 
@@ -67,13 +70,6 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	getParam, err := url.ParseQuery(req.URL.RawQuery)
-	if err != nil {
-		fiveHundredError(resp)
-		log.Print(err)
-		return
-	}
-
 	pathParts := strings.Split(req.URL.Path, "/")
 	methodName := pathParts[len(pathParts)-1]
 	methodDef, ok := a.methods[methodName]
@@ -83,6 +79,13 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	numParams := len(methodDef.paramName)
+
+	getParam, err := url.ParseQuery(req.URL.RawQuery)
+	if err != nil {
+		fiveHundredError(resp)
+		log.Print(err)
+		return
+	}
 
 	getParamCount := 0
 	for _, v := range getParam {
@@ -123,39 +126,41 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	m := reflect.ValueOf(a.api).MethodByName(methodName)
 	r := m.Call(argRval[0:numParams])
 
-	errRval := r[2].Interface()
-
-	if errRval != nil {
-		non500Error, isNon500Error := errRval.(Non500Error)
+	// error can be not type error if nil for some reason
+	err, isError := r[2].Interface().(error)
+	if !isError {
+		err = nil
+	}
+	if err != nil {
+		non500Error, isNon500Error := err.(Non500Error)
 		if isNon500Error {
 			if non500Error.ErrorCode == 301 ||
 				non500Error.ErrorCode == 302 ||
 				non500Error.ErrorCode == 303 {
+				// might need to unset headers in here
 				resp.Header().Set("Location", non500Error.Location)
 			}
 			http.Error(resp, non500Error.ErrorStr, non500Error.ErrorCode)
 		} else {
 			fiveHundredError(resp)
-			log.Print(errRval.(error))
+			log.Print(err)
 		}
 		return
 	}
 
-	readerRval := r[0].Interface()
-	if readerRval == nil {
-		fiveHundredError(resp)
-		log.Printf("Method %s didnt return a reader or error", methodName)
-		return
+	settings := r[1].Interface().(*Settings)
+	if settings == nil {
+		settings = a.defaultSettings
 	}
-	reader := readerRval.(io.Reader)
 
-	var settings *Settings
-	settingsRval := r[1].Interface()
-	if settingsRval == nil || r[1] {
-		settings = &a.defaultSettings
-	} else {
-		log.Printf("%s", r[1].String())
-		settings = settingsRval.(*Settings)
+	if settings.ContentType != "" {
+		resp.Header().Set("Content-Type", settings.ContentType)
+	}
+
+	if settings.Cache > 0 && req.Method == "GET" {
+		var a time.Time
+		a = time.Unix(time.Now().UTC().Unix()+settings.Cache, 0).UTC()
+		resp.Header().Set("Expires", a.Format(time.RFC1123))
 	}
 
 	var compress io.Writer
@@ -166,6 +171,13 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		defer gz.Close()
 	} else {
 		compress = resp
+	}
+
+	reader := r[0].Interface().(io.Reader)
+	if reader == nil {
+		fiveHundredError(resp)
+		log.Printf("Method %s returned nil reader and error", methodName)
+		return
 	}
 
 	_, err = io.Copy(compress, reader)

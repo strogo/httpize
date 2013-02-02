@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 type TestArgType string
@@ -23,7 +24,9 @@ func NewTestArgType(value string) ArgType {
 	return TestArgType(value)
 }
 
-type TestApiProvider struct{}
+type TestApiProvider struct {
+	settings *Settings
+}
 
 func (t *TestApiProvider) Httpize(methods ApiMethods) {
 	methods.Add("Echo", []string{"name"}, []NewArgFunc{NewTestArgType})
@@ -32,16 +35,16 @@ func (t *TestApiProvider) Httpize(methods ApiMethods) {
 }
 
 func (t *TestApiProvider) Echo(name TestArgType) (io.Reader, *Settings, error) {
-	return bytes.NewBufferString("Echo " + string(name)), nil, nil
+	return bytes.NewBufferString("Echo " + string(name)), t.settings, nil
 }
 
 func (t *TestApiProvider) Greeting() (io.Reader, *Settings, error) {
-	return bytes.NewBufferString("Hello World"), nil, nil
+	return bytes.NewBufferString("Hello World"), t.settings, nil
 }
 
 func (t *TestApiProvider) ThreeOhThree() (io.Reader, *Settings, error) {
 	err := Non500Error{303, "See Other", "http://lookhere"}
-	return nil, nil, err
+	return nil, t.settings, err
 }
 
 func checkCode(t *testing.T, r *httptest.ResponseRecorder, code int) {
@@ -61,6 +64,9 @@ func TestTestApiProvider(t *testing.T) {
 	checkCode(t, recorder, 200)
 	if recorder.Body.String() != "Echo Gopher" {
 		t.Fatal("incorrect response")
+	}
+	if v, ok := recorder.HeaderMap["Content-Type"]; !ok || v[0] != "text/html" {
+		t.Fatalf("Content-Type header missing or invalid")
 	}
 
 	recorder = httptest.NewRecorder()
@@ -112,6 +118,44 @@ func TestTestApiProvider(t *testing.T) {
 	request, _ = http.NewRequest("GET", "http://host/ThreeOhThree", nil)
 	h.ServeHTTP(recorder, request)
 	checkCode(t, recorder, 303)
+
+	a.settings = new(Settings)
+
+	a.settings.SetToDefault()
+	a.settings.Cache = 300
+	recorder = httptest.NewRecorder()
+	request, _ = http.NewRequest("GET", "http://host/Greeting", nil)
+	h.ServeHTTP(recorder, request)
+	checkCode(t, recorder, 200)
+	if _, ok := recorder.HeaderMap["Expires"]; !ok {
+		t.Fatalf("Expires header missing")
+	}
+	now := time.Now()
+	cacheTime, err := time.Parse(time.RFC1123, recorder.HeaderMap["Expires"][0])
+	if err != nil || cacheTime.Before(now) {
+		t.Fatalf("Expires header invalid")
+	}
+
+	a.settings.SetToDefault()
+	a.settings.Gzip = true
+
+	recorder = httptest.NewRecorder()
+	request, _ = http.NewRequest("GET", "http://host/Greeting", nil)
+	request.Header.Add("Accept-Encoding", "gzip")
+	h.ServeHTTP(recorder, request)
+	checkCode(t, recorder, 200)
+	if v, ok := recorder.HeaderMap["Content-Encoding"]; !ok || v[0] != "gzip" {
+		t.Fatalf("Content-Encoding header missing or invalid")
+	}
+
+	recorder = httptest.NewRecorder()
+	request, _ = http.NewRequest("GET", "http://host/Greeting", nil)
+	h.ServeHTTP(recorder, request)
+	checkCode(t, recorder, 200)
+	if _, ok := recorder.HeaderMap["Content-Encoding"]; ok {
+		t.Fatalf("Unexpected Content-Encoding")
+	}
+
 }
 
 type TestApiProviderPanic struct{}

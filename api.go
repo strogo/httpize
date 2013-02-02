@@ -11,7 +11,15 @@ type ArgType interface {
 type NewArgFunc func(value string) ArgType
 
 type Settings struct {
-	Gzip bool
+	Cache       int64
+	ContentType string
+	Gzip        bool
+}
+
+func (s *Settings) SetToDefault() {
+	s.Cache = 0
+	s.ContentType = "text/html"
+	s.Gzip = false
 }
 
 // Handled errors are considered 500 errors unless specifically of type:
