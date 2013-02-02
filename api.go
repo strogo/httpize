@@ -4,11 +4,11 @@ type MethodProvider interface {
 	Httpize(methods Methods)
 }
 
-type ParamType interface {
+type Arg interface {
 	Check() error
 }
 
-type ArgCreateFunc func(value string) ParamType
+type ArgCreateFunc func(value string) Arg
 
 type Settings struct {
 	Cache       int64
