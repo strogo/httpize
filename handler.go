@@ -19,11 +19,11 @@ type Handler struct {
 }
 
 type ArgDef struct {
-	names       []string
-	createFuncs []ArgCreateFunc
+	name       string
+	createFunc ArgCreateFunc
 }
 
-type Methods map[string]*ArgDef
+type Methods map[string][]ArgDef
 
 func NewHandler(provider MethodProvider) *Handler {
 	h := new(Handler)
@@ -76,7 +76,7 @@ func providerError(err error, resp http.ResponseWriter) {
 	}
 }
 
-func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" && req.Method != "POST" {
 		fiveHundredError(resp)
 		log.Printf("Unsupported HTTP method: %s", req.Method)
@@ -85,7 +85,7 @@ func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	pathParts := strings.Split(req.URL.Path, "/")
 	methodName := pathParts[len(pathParts)-1]
-	argDef, ok := a.methods[methodName]
+	argDefs, ok := h.methods[methodName]
 	if !ok {
 		fiveHundredError(resp)
 		log.Printf("Method %s not defined (URL: %s)", methodName, req.URL.String())
@@ -99,20 +99,13 @@ func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	getParamCount := 0
-	for _, v := range getParam {
-		for i := 0; i < len(v); i++ {
-			getParamCount++
-		}
-	}
-
-	numArgs := len(argDef.names)
+	numArgs := len(argDefs)
 	foundArgs := 0
 	var argRval [10]reflect.Value
 	for i := 0; i < numArgs; i++ {
-		argName := argDef.names[i]
+		argName := argDefs[i].name
 		if v, ok := getParam[argName]; ok {
-			arg := argDef.createFuncs[i](v[0])
+			arg := argDefs[i].createFunc(v[0])
 			err := arg.Check()
 			if err != nil {
 				providerError(err, resp)
@@ -123,29 +116,31 @@ func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	getParamCount := 0
+	for _, v := range getParam {
+		for i := 0; i < len(v); i++ {
+			getParamCount++
+		}
+	}
+
 	if foundArgs != numArgs || foundArgs != getParamCount {
 		fiveHundredError(resp)
-		log.Printf(
-			"Method %s(%s) called incorrectly (URL: %s)",
-			methodName,
-			strings.Join(argDef.names, ", "),
-			req.URL.String(),
-		)
+		log.Printf("%s called incorrectly (URL: %s)", methodName, req.URL.String())
 		return
 	}
 
-	m := reflect.ValueOf(a.provider).MethodByName(methodName)
-	r := m.Call(argRval[0:numArgs])
+	m := reflect.ValueOf(h.provider).MethodByName(methodName)
+	rvals := m.Call(argRval[0:numArgs])
 
 	// error can be not type error if nil for some reason
-	if err, isError := r[2].Interface().(error); isError && err != nil {
+	if err, isError := rvals[2].Interface().(error); isError && err != nil {
 		providerError(err, resp)
 		return
 	}
 
-	settings := r[1].Interface().(*Settings)
+	settings := rvals[1].Interface().(*Settings)
 	if settings == nil {
-		settings = a.defaultSettings
+		settings = h.defaultSettings
 	}
 
 	if settings.ContentType != "" {
@@ -153,9 +148,8 @@ func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	if settings.Cache > 0 && req.Method == "GET" {
-		var a time.Time
-		a = time.Unix(time.Now().UTC().Unix()+settings.Cache, 0).UTC()
-		resp.Header().Set("Expires", a.Format(time.RFC1123))
+		t := time.Unix(time.Now().UTC().Unix()+settings.Cache, 0).UTC()
+		resp.Header().Set("Expires", t.Format(time.RFC1123))
 	}
 
 	var compress io.Writer
@@ -168,7 +162,7 @@ func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		compress = resp
 	}
 
-	reader := r[0].Interface().(io.Reader)
+	reader := rvals[0].Interface().(io.Reader)
 	if reader == nil {
 		fiveHundredError(resp)
 		log.Printf("Method %s returned nil reader and error", methodName)
@@ -183,13 +177,16 @@ func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 }
 
 func (a Methods) Add(methodName string, argNames []string, argCreateFuncs []ArgCreateFunc) {
-	numParams := len(argNames)
-	if numParams != len(argCreateFuncs) {
-		panic("Add method fail, paramNames and newArgFuncs array have different length")
+	numArgs := len(argNames)
+	if numArgs != len(argCreateFuncs) {
+		panic("Add method fail, argNames and argCreateFuncs array have different length")
 	}
-	if numParams > 10 {
+	if numArgs > 10 {
 		panic("Add method fail, too many parameters (>10)")
 	}
-
-	a[methodName] = &ArgDef{argNames, argCreateFuncs}
+	a[methodName] = make([]ArgDef, numArgs)
+	for i := 0; i < numArgs; i++ {
+		a[methodName][i].name = argNames[i]
+		a[methodName][i].createFunc = argCreateFuncs[i]
+	}
 }
