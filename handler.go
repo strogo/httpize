@@ -34,7 +34,7 @@ func NewHandler(provider MethodProvider) *Handler {
 		h.provider.Httpize(h.methods)
 	}
 
-	for methodName, _ := range h.methods {
+	for methodName := range h.methods {
 		v := reflect.ValueOf(h.provider)
 		if v.Kind() == reflect.Invalid {
 			panic("MethodProvider not valid")

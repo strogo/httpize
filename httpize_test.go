@@ -156,7 +156,6 @@ func TestTestApiProvider(t *testing.T) {
 	if _, ok := recorder.HeaderMap["Content-Encoding"]; ok {
 		t.Fatalf("Unexpected Content-Encoding")
 	}
-
 }
 
 type TestApiProviderPanic struct{}
