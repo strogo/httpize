@@ -1,9 +1,5 @@
 package httpize
 
-import (
-	"net/http"
-)
-
 type MethodProvider interface {
 	Httpize(methods Methods)
 }
@@ -35,12 +31,4 @@ type Non500Error struct {
 
 func (e Non500Error) Error() string {
 	return e.ErrorStr
-}
-
-func (e Non500Error) write(resp http.ResponseWriter) {
-	if e.ErrorCode == 301 || e.ErrorCode == 302 || e.ErrorCode == 303 {
-		// might need to unset headers in here
-		resp.Header().Set("Location", e.Location)
-	}
-	http.Error(resp, e.ErrorStr, e.ErrorCode)
 }

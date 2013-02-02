@@ -18,12 +18,12 @@ type Handler struct {
 	defaultSettings *Settings
 }
 
-type argDefs struct {
-	name       []string
-	createFunc []ArgCreateFunc
+type ArgDef struct {
+	names       []string
+	createFuncs []ArgCreateFunc
 }
 
-type Methods map[string]*argDefs
+type Methods map[string]*ArgDef
 
 func NewHandler(provider MethodProvider) *Handler {
 	h := new(Handler)
@@ -63,6 +63,19 @@ func fiveHundredError(resp http.ResponseWriter) {
 	http.Error(resp, "error", 500)
 }
 
+func providerError(err error, resp http.ResponseWriter) {
+	if e, ok := err.(Non500Error); ok {
+		if e.ErrorCode == 301 || e.ErrorCode == 302 || e.ErrorCode == 303 {
+			// might need to unset headers in here
+			resp.Header().Set("Location", e.Location)
+		}
+		http.Error(resp, e.ErrorStr, e.ErrorCode)
+	} else {
+		fiveHundredError(resp)
+		log.Print(err)
+	}
+}
+
 func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" && req.Method != "POST" {
 		fiveHundredError(resp)
@@ -78,7 +91,6 @@ func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		log.Printf("Method %s not defined (URL: %s)", methodName, req.URL.String())
 		return
 	}
-	numArgs := len(argDef.name)
 
 	getParam, err := url.ParseQuery(req.URL.RawQuery)
 	if err != nil {
@@ -94,27 +106,21 @@ func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	numArgs := len(argDef.names)
 	foundArgs := 0
 	var argRval [10]reflect.Value
 	for i := 0; i < numArgs; i++ {
-		argName := argDef.name[i]
-		if _, ok := getParam[argName]; !ok {
-			break
-		}
-		arg := argDef.createFunc[i](getParam[argName][0])
-		err := arg.Check()
-		if err != nil {
-			non500Error, isNon500Error := err.(Non500Error)
-			if isNon500Error {
-				non500Error.write(resp)
-			} else {
-				fiveHundredError(resp)
-				log.Printf("Method %s '%s' parameter error: %s", methodName, argName, err)
+		argName := argDef.names[i]
+		if v, ok := getParam[argName]; ok {
+			arg := argDef.createFuncs[i](v[0])
+			err := arg.Check()
+			if err != nil {
+				providerError(err, resp)
+				return
 			}
-			return
+			argRval[i] = reflect.ValueOf(arg)
+			foundArgs++
 		}
-		argRval[i] = reflect.ValueOf(arg)
-		foundArgs++
 	}
 
 	if foundArgs != numArgs || foundArgs != getParamCount {
@@ -122,7 +128,7 @@ func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		log.Printf(
 			"Method %s(%s) called incorrectly (URL: %s)",
 			methodName,
-			strings.Join(argDef.name, ", "),
+			strings.Join(argDef.names, ", "),
 			req.URL.String(),
 		)
 		return
@@ -133,13 +139,7 @@ func (a *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	// error can be not type error if nil for some reason
 	if err, isError := r[2].Interface().(error); isError && err != nil {
-		non500Error, isNon500Error := err.(Non500Error)
-		if isNon500Error {
-			non500Error.write(resp)
-		} else {
-			fiveHundredError(resp)
-			log.Print(err)
-		}
+		providerError(err, resp)
 		return
 	}
 
@@ -191,5 +191,5 @@ func (a Methods) Add(methodName string, argNames []string, argCreateFuncs []ArgC
 		panic("Add method fail, too many parameters (>10)")
 	}
 
-	a[methodName] = &argDefs{argNames, argCreateFuncs}
+	a[methodName] = &ArgDef{argNames, argCreateFuncs}
 }
