@@ -4,15 +4,15 @@ import (
 	"net/http"
 )
 
-type ApiProvider interface {
-	Httpize(methods ApiMethods)
+type MethodProvider interface {
+	Httpize(methods Methods)
 }
 
-type ArgType interface {
+type ParamType interface {
 	Check() error
 }
 
-type NewArgFunc func(value string) ArgType
+type ArgCreateFunc func(value string) ParamType
 
 type Settings struct {
 	Cache       int64

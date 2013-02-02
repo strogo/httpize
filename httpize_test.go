@@ -11,30 +11,31 @@ import (
 	"time"
 )
 
-type TestArgType string
+type TestParamType string
 
-func (d TestArgType) Check() error {
+func (d TestParamType) Check() error {
 	if strings.Contains(string(d), "'") {
-		return errors.New("TestArgType in wrong format")
+		return errors.New("TestParamType in wrong format")
 	}
 	return nil
 }
 
-func NewTestArgType(value string) ArgType {
-	return TestArgType(value)
+func NewTestParamType(value string) ParamType {
+	return TestParamType(value)
 }
 
 type TestApiProvider struct {
 	settings *Settings
 }
 
-func (t *TestApiProvider) Httpize(methods ApiMethods) {
-	methods.Add("Echo", []string{"name"}, []NewArgFunc{NewTestArgType})
-	methods.Add("Greeting", []string{}, []NewArgFunc{})
-	methods.Add("ThreeOhThree", []string{}, []NewArgFunc{})
+func (t *TestApiProvider) Httpize(methods Methods) {
+	//    methods.Add("Echo", []ArgDef{ArgDef{"name", NewTestParamType}})
+	methods.Add("Echo", []string{"name"}, []ArgCreateFunc{NewTestParamType})
+	methods.Add("Greeting", []string{}, []ArgCreateFunc{})
+	methods.Add("ThreeOhThree", []string{}, []ArgCreateFunc{})
 }
 
-func (t *TestApiProvider) Echo(name TestArgType) (io.Reader, *Settings, error) {
+func (t *TestApiProvider) Echo(name TestParamType) (io.Reader, *Settings, error) {
 	return bytes.NewBufferString("Echo " + string(name)), t.settings, nil
 }
 
@@ -160,11 +161,11 @@ func TestTestApiProvider(t *testing.T) {
 
 type TestApiProviderPanic struct{}
 
-func (t *TestApiProviderPanic) Httpize(methods ApiMethods) {
-	methods.Add("Echo", []string{"name"}, []NewArgFunc{NewTestArgType})
+func (t *TestApiProviderPanic) Httpize(methods Methods) {
+	methods.Add("Echo", []string{"name"}, []ArgCreateFunc{NewTestParamType})
 }
 
-func (t *TestApiProviderPanic) Echo(name TestArgType) (int, error) {
+func (t *TestApiProviderPanic) Echo(name TestParamType) (int, error) {
 	return 42, nil
 }
 

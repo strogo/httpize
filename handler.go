@@ -13,42 +13,42 @@ import (
 )
 
 type HttpHandler struct {
-	api             ApiProvider
-	methods         ApiMethods
+	provider        MethodProvider
+	methods         Methods
 	defaultSettings *Settings
 }
 
-type apiMethod struct {
-	paramName  []string
-	newArgFunc []NewArgFunc
+type argDefs struct {
+	name       []string
+	createFunc []ArgCreateFunc
 }
 
-type ApiMethods map[string]*apiMethod
+type Methods map[string]*argDefs
 
-func NewHandler(api ApiProvider) *HttpHandler {
+func NewHandler(provider MethodProvider) *HttpHandler {
 	h := new(HttpHandler)
-	h.api = api
-	h.methods = make(ApiMethods)
+	h.provider = provider
+	h.methods = make(Methods)
 
-	if h.api != nil {
-		h.api.Httpize(h.methods)
+	if h.provider != nil {
+		h.provider.Httpize(h.methods)
 	}
 
 	for methodName, _ := range h.methods {
-		v := reflect.ValueOf(h.api)
+		v := reflect.ValueOf(h.provider)
 		if v.Kind() == reflect.Invalid {
-			panic("ApiProvider not valid")
+			panic("MethodProvider not valid")
 		}
 		m := v.MethodByName(methodName)
 		if m.Kind() != reflect.Func {
-			panic("ApiMethod not func")
+			panic("Method not func")
 		}
 		if m.Type().NumOut() != 3 ||
 			m.Type().Out(0).String() != "io.Reader" ||
 			m.Type().Out(1).String() != "*httpize.Settings" ||
 			m.Type().Out(2).String() != "error" {
 			panic(fmt.Sprintf(
-				"ApiMethod %s does not return (io.Reader, *httpize.Settings, error)",
+				"Method %s does not return (io.Reader, *httpize.Settings, error)",
 				methodName,
 			))
 		}
@@ -72,13 +72,13 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	pathParts := strings.Split(req.URL.Path, "/")
 	methodName := pathParts[len(pathParts)-1]
-	methodDef, ok := a.methods[methodName]
+	argDef, ok := a.methods[methodName]
 	if !ok {
 		fiveHundredError(resp)
 		log.Printf("Method %s not defined (URL: %s)", methodName, req.URL.String())
 		return
 	}
-	numParams := len(methodDef.paramName)
+	numArgs := len(argDef.name)
 
 	getParam, err := url.ParseQuery(req.URL.RawQuery)
 	if err != nil {
@@ -96,12 +96,12 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	foundArgs := 0
 	var argRval [10]reflect.Value
-	for i := 0; i < numParams; i++ {
-		paramName := methodDef.paramName[i]
-		if _, ok := getParam[paramName]; !ok {
+	for i := 0; i < numArgs; i++ {
+		argName := argDef.name[i]
+		if _, ok := getParam[argName]; !ok {
 			break
 		}
-		arg := methodDef.newArgFunc[i](getParam[paramName][0])
+		arg := argDef.createFunc[i](getParam[argName][0])
 		err := arg.Check()
 		if err != nil {
 			non500Error, isNon500Error := err.(Non500Error)
@@ -109,7 +109,7 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 				non500Error.write(resp)
 			} else {
 				fiveHundredError(resp)
-				log.Printf("Method %s '%s' parameter error: %s", methodName, paramName, err)
+				log.Printf("Method %s '%s' parameter error: %s", methodName, argName, err)
 			}
 			return
 		}
@@ -117,19 +117,19 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		foundArgs++
 	}
 
-	if foundArgs != numParams || foundArgs != getParamCount {
+	if foundArgs != numArgs || foundArgs != getParamCount {
 		fiveHundredError(resp)
 		log.Printf(
 			"Method %s(%s) called incorrectly (URL: %s)",
 			methodName,
-			strings.Join(methodDef.paramName, ", "),
+			strings.Join(argDef.name, ", "),
 			req.URL.String(),
 		)
 		return
 	}
 
-	m := reflect.ValueOf(a.api).MethodByName(methodName)
-	r := m.Call(argRval[0:numParams])
+	m := reflect.ValueOf(a.provider).MethodByName(methodName)
+	r := m.Call(argRval[0:numArgs])
 
 	// error can be not type error if nil for some reason
 	if err, isError := r[2].Interface().(error); isError && err != nil {
@@ -182,13 +182,14 @@ func (a *HttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (a ApiMethods) Add(methodName string, paramNames []string, newArgFuncs []NewArgFunc) {
-	if len(paramNames) != len(newArgFuncs) {
+func (a Methods) Add(methodName string, argNames []string, argCreateFuncs []ArgCreateFunc) {
+	numParams := len(argNames)
+	if numParams != len(argCreateFuncs) {
 		panic("Add method fail, paramNames and newArgFuncs array have different length")
 	}
-	if len(newArgFuncs) > 10 {
+	if numParams > 10 {
 		panic("Add method fail, too many parameters (>10)")
 	}
 
-	a[methodName] = &apiMethod{paramNames, newArgFuncs}
+	a[methodName] = &argDefs{argNames, argCreateFuncs}
 }
