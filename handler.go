@@ -20,10 +20,15 @@ type Handler struct {
 
 type ArgDef struct {
 	name       string
-	createFunc interface{}
+	createFunc reflect.Value
 }
 
-type Methods map[string][]ArgDef
+type MethodDef struct {
+	methodFunc reflect.Value
+	argDefs    []ArgDef
+}
+
+type Methods map[string]*MethodDef
 
 func NewHandler(provider MethodProvider) *Handler {
 	h := new(Handler)
@@ -34,7 +39,7 @@ func NewHandler(provider MethodProvider) *Handler {
 		h.provider.Httpize(h.methods)
 	}
 
-	for methodName, argDefs := range h.methods {
+	for methodName, methodDef := range h.methods {
 		v := reflect.ValueOf(h.provider)
 		if v.Kind() == reflect.Invalid {
 			panic("MethodProvider not valid")
@@ -52,20 +57,7 @@ func NewHandler(provider MethodProvider) *Handler {
 				methodName,
 			))
 		}
-
-		for _, argDef := range argDefs {
-			v = reflect.ValueOf(argDef.createFunc)
-			if v.Kind() != reflect.Func {
-				panic("argCreateFunc is not a function")
-			}
-			if v.Type().NumIn() != 1 && v.Type().In(0).Kind() != reflect.String {
-				panic("argCreateFunc incorrect parameter")
-			}
-			if v.Type().NumOut() != 1 {
-				panic("argCreateFunc missing return value")
-			}
-		}
-
+		methodDef.methodFunc = m
 	}
 
 	h.defaultSettings = new(Settings)
@@ -99,7 +91,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	pathParts := strings.Split(req.URL.Path, "/")
 	methodName := pathParts[len(pathParts)-1]
-	argDefs, ok := h.methods[methodName]
+	methodDef, ok := h.methods[methodName]
 	if !ok {
 		fiveHundredError(resp)
 		log.Printf("Method %s not defined (URL: %s)", methodName, req.URL.String())
@@ -113,16 +105,15 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	numArgs := len(argDefs)
+	numArgs := len(methodDef.argDefs)
 	foundArgs := 0
 	var argReflect [10]reflect.Value
 	for i := 0; i < numArgs; i++ {
-		argName := argDefs[i].name
-		if v, ok := getParam[argName]; ok {
-			var createFuncArgReflect [1]reflect.Value
-			createFuncArgReflect[0] = reflect.ValueOf(v[0])
-			createFuncReflect := reflect.ValueOf(argDefs[i].createFunc)
-			argReflect[i] = createFuncReflect.Call(createFuncArgReflect[:])[0]
+		argDef := methodDef.argDefs[i]
+		if v, ok := getParam[argDef.name]; ok {
+			var getValueReflect [1]reflect.Value
+			getValueReflect[0] = reflect.ValueOf(v[0])
+			argReflect[i] = argDef.createFunc.Call(getValueReflect[:])[0]
 			if arg, ok := argReflect[i].Interface().(Arg); ok {
 				err := arg.Check()
 				if err != nil {
@@ -131,7 +122,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 				}
 			} else {
 				fiveHundredError(resp)
-				log.Printf("Bad parameter %s in Method %s", argName, methodName)
+				log.Printf("Bad parameter %s in Method %s", argDef.name, methodName)
 				return
 			}
 			foundArgs++
@@ -151,8 +142,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	m := reflect.ValueOf(h.provider).MethodByName(methodName)
-	rvals := m.Call(argReflect[0:numArgs])
+	rvals := methodDef.methodFunc.Call(argReflect[0:numArgs])
 
 	// error can be not type error if nil for some reason
 	if err, isError := rvals[2].Interface().(error); isError && err != nil {
@@ -206,9 +196,23 @@ func (a Methods) Add(methodName string, argNames []string, argCreateFuncs []inte
 	if numArgs > 10 {
 		panic("Add method fail, too many parameters (>10)")
 	}
-	a[methodName] = make([]ArgDef, numArgs)
+
+	methodDef := new(MethodDef)
+	methodDef.argDefs = make([]ArgDef, numArgs)
 	for i := 0; i < numArgs; i++ {
-		a[methodName][i].name = argNames[i]
-		a[methodName][i].createFunc = argCreateFuncs[i]
+		methodDef.argDefs[i].name = argNames[i]
+
+		v := reflect.ValueOf(argCreateFuncs[i])
+		if v.Kind() != reflect.Func {
+			panic("argCreateFunc is not a function")
+		}
+		if v.Type().NumIn() != 1 && v.Type().In(0).Kind() != reflect.String {
+			panic("argCreateFunc incorrect parameter")
+		}
+		if v.Type().NumOut() != 1 {
+			panic("argCreateFunc missing return value")
+		}
+		methodDef.argDefs[i].createFunc = v
 	}
+	a[methodName] = methodDef
 }
