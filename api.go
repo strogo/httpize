@@ -8,8 +8,6 @@ type Arg interface {
 	Check() error
 }
 
-type ArgCreateFunc func(value string) Arg
-
 type Settings struct {
 	Cache       int64
 	ContentType string

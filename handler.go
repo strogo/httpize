@@ -20,7 +20,7 @@ type Handler struct {
 
 type ArgDef struct {
 	name       string
-	createFunc ArgCreateFunc
+	createFunc interface{}
 }
 
 type Methods map[string][]ArgDef
@@ -34,7 +34,7 @@ func NewHandler(provider MethodProvider) *Handler {
 		h.provider.Httpize(h.methods)
 	}
 
-	for methodName := range h.methods {
+	for methodName, argDefs := range h.methods {
 		v := reflect.ValueOf(h.provider)
 		if v.Kind() == reflect.Invalid {
 			panic("MethodProvider not valid")
@@ -52,6 +52,20 @@ func NewHandler(provider MethodProvider) *Handler {
 				methodName,
 			))
 		}
+
+		for _, argDef := range argDefs {
+			v = reflect.ValueOf(argDef.createFunc)
+			if v.Kind() != reflect.Func {
+				panic("argCreateFunc is not a function")
+			}
+			if v.Type().NumIn() != 1 && v.Type().In(0).Kind() != reflect.String {
+				panic("argCreateFunc incorrect parameter")
+			}
+			if v.Type().NumOut() != 1 {
+				panic("argCreateFunc missing return value")
+			}
+		}
+
 	}
 
 	h.defaultSettings = new(Settings)
@@ -101,17 +115,25 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	numArgs := len(argDefs)
 	foundArgs := 0
-	var argRval [10]reflect.Value
+	var argReflect [10]reflect.Value
 	for i := 0; i < numArgs; i++ {
 		argName := argDefs[i].name
 		if v, ok := getParam[argName]; ok {
-			arg := argDefs[i].createFunc(v[0])
-			err := arg.Check()
-			if err != nil {
-				providerError(err, resp)
+			var createFuncArgReflect [1]reflect.Value
+			createFuncArgReflect[0] = reflect.ValueOf(v[0])
+			createFuncReflect := reflect.ValueOf(argDefs[i].createFunc)
+			argReflect[i] = createFuncReflect.Call(createFuncArgReflect[:])[0]
+			if arg, ok := argReflect[i].Interface().(Arg); ok {
+				err := arg.Check()
+				if err != nil {
+					providerError(err, resp)
+					return
+				}
+			} else {
+				fiveHundredError(resp)
+				log.Printf("Bad parameter %s in Method %s", argName, methodName)
 				return
 			}
-			argRval[i] = reflect.ValueOf(arg)
 			foundArgs++
 		}
 	}
@@ -130,7 +152,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	m := reflect.ValueOf(h.provider).MethodByName(methodName)
-	rvals := m.Call(argRval[0:numArgs])
+	rvals := m.Call(argReflect[0:numArgs])
 
 	// error can be not type error if nil for some reason
 	if err, isError := rvals[2].Interface().(error); isError && err != nil {
@@ -176,7 +198,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (a Methods) Add(methodName string, argNames []string, argCreateFuncs []ArgCreateFunc) {
+func (a Methods) Add(methodName string, argNames []string, argCreateFuncs []interface{}) {
 	numArgs := len(argNames)
 	if numArgs != len(argCreateFuncs) {
 		panic("Add method fail, argNames and argCreateFuncs array have different length")

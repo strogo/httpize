@@ -20,8 +20,12 @@ func (d TestParamType) Check() error {
 	return nil
 }
 
-func NewTestParamType(value string) Arg {
+func NewTestParamType(value string) TestParamType {
 	return TestParamType(value)
+}
+
+func NewTestParamType2(a string) int {
+	return 42
 }
 
 type TestApiProvider struct {
@@ -30,9 +34,10 @@ type TestApiProvider struct {
 
 func (t *TestApiProvider) Httpize(methods Methods) {
 	//    methods.Add("Echo", []ArgDef{ArgDef{"name", NewTestParamType}})
-	methods.Add("Echo", []string{"name"}, []ArgCreateFunc{NewTestParamType})
-	methods.Add("Greeting", []string{}, []ArgCreateFunc{})
-	methods.Add("ThreeOhThree", []string{}, []ArgCreateFunc{})
+	methods.Add("Echo", []string{"name"}, []interface{}{NewTestParamType})
+	methods.Add("Greeting", []string{}, []interface{}{})
+	methods.Add("ThreeOhThree", []string{}, []interface{}{})
+	methods.Add("BadEcho", []string{"name"}, []interface{}{NewTestParamType2})
 }
 
 func (t *TestApiProvider) Echo(name TestParamType) (io.Reader, *Settings, error) {
@@ -46,6 +51,10 @@ func (t *TestApiProvider) Greeting() (io.Reader, *Settings, error) {
 func (t *TestApiProvider) ThreeOhThree() (io.Reader, *Settings, error) {
 	err := Non500Error{303, "See Other", "http://lookhere"}
 	return nil, t.settings, err
+}
+
+func (t *TestApiProvider) BadEcho(name TestParamType) (io.Reader, *Settings, error) {
+	return bytes.NewBufferString("Echo " + string(name)), nil, nil
 }
 
 func checkCode(t *testing.T, r *httptest.ResponseRecorder, code int) {
@@ -149,6 +158,8 @@ func TestTestApiProvider(t *testing.T) {
 		t.Fatalf("Content-Encoding header missing or invalid")
 	}
 
+	a.settings.SetToDefault()
+
 	recorder = httptest.NewRecorder()
 	request, _ = http.NewRequest("GET", "http://host/Greeting", nil)
 	h.ServeHTTP(recorder, request)
@@ -156,12 +167,17 @@ func TestTestApiProvider(t *testing.T) {
 	if _, ok := recorder.HeaderMap["Content-Encoding"]; ok {
 		t.Fatalf("Unexpected Content-Encoding")
 	}
+
+	recorder = httptest.NewRecorder()
+	request, _ = http.NewRequest("GET", "http://host/path/BadEcho?name=Gopher", nil)
+	h.ServeHTTP(recorder, request)
+	checkCode(t, recorder, 500)
 }
 
 type TestApiProviderPanic struct{}
 
 func (t *TestApiProviderPanic) Httpize(methods Methods) {
-	methods.Add("Echo", []string{"name"}, []ArgCreateFunc{NewTestParamType})
+	methods.Add("Echo", []string{"name"}, []interface{}{NewTestParamType})
 }
 
 func (t *TestApiProviderPanic) Echo(name TestParamType) (int, error) {
