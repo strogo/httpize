@@ -23,12 +23,12 @@ type ArgDef struct {
 	createFunc reflect.Value
 }
 
-type MethodDef struct {
+type CallDef struct {
 	methodFunc reflect.Value
 	argDefs    []ArgDef
 }
 
-type Methods map[string]*MethodDef
+type Methods map[string]*CallDef
 
 func NewHandler(provider MethodProvider) *Handler {
 	h := new(Handler)
@@ -39,7 +39,7 @@ func NewHandler(provider MethodProvider) *Handler {
 		h.provider.Httpize(h.methods)
 	}
 
-	for methodName, methodDef := range h.methods {
+	for methodName, callDef := range h.methods {
 		v := reflect.ValueOf(h.provider)
 		if v.Kind() == reflect.Invalid {
 			panic("MethodProvider not valid")
@@ -57,7 +57,7 @@ func NewHandler(provider MethodProvider) *Handler {
 				methodName,
 			))
 		}
-		methodDef.methodFunc = m
+		callDef.methodFunc = m
 	}
 
 	h.defaultSettings = new(Settings)
@@ -91,7 +91,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	pathParts := strings.Split(req.URL.Path, "/")
 	methodName := pathParts[len(pathParts)-1]
-	methodDef, ok := h.methods[methodName]
+	callDef, ok := h.methods[methodName]
 	if !ok {
 		fiveHundredError(resp)
 		log.Printf("Method %s not defined (URL: %s)", methodName, req.URL.String())
@@ -105,11 +105,11 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	numArgs := len(methodDef.argDefs)
+	numArgs := len(callDef.argDefs)
 	foundArgs := 0
 	var argReflect [10]reflect.Value
 	for i := 0; i < numArgs; i++ {
-		argDef := methodDef.argDefs[i]
+		argDef := callDef.argDefs[i]
 		if v, ok := getParam[argDef.name]; ok {
 			var getValueReflect [1]reflect.Value
 			getValueReflect[0] = reflect.ValueOf(v[0])
@@ -142,7 +142,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	rvals := methodDef.methodFunc.Call(argReflect[0:numArgs])
+	rvals := callDef.methodFunc.Call(argReflect[0:numArgs])
 
 	// error can be not type error if nil for some reason
 	if err, isError := rvals[2].Interface().(error); isError && err != nil {
@@ -197,10 +197,10 @@ func (a Methods) Add(methodName string, argNames []string, argCreateFuncs []inte
 		panic("Add method fail, too many parameters (>10)")
 	}
 
-	methodDef := new(MethodDef)
-	methodDef.argDefs = make([]ArgDef, numArgs)
+	callDef := new(CallDef)
+	callDef.argDefs = make([]ArgDef, numArgs)
 	for i := 0; i < numArgs; i++ {
-		methodDef.argDefs[i].name = argNames[i]
+		callDef.argDefs[i].name = argNames[i]
 
 		v := reflect.ValueOf(argCreateFuncs[i])
 		if v.Kind() != reflect.Func {
@@ -212,7 +212,7 @@ func (a Methods) Add(methodName string, argNames []string, argCreateFuncs []inte
 		if v.Type().NumOut() != 1 {
 			panic("argCreateFunc missing return value")
 		}
-		methodDef.argDefs[i].createFunc = v
+		callDef.argDefs[i].createFunc = v
 	}
-	a[methodName] = methodDef
+	a[methodName] = callDef
 }
