@@ -15,12 +15,46 @@ type Handler struct {
 	defaultSettings *Settings
 }
 
+type Settings struct {
+	Cache       int64
+	ContentType string
+	Gzip        bool
+}
+
+func (s *Settings) SetToDefault() {
+	s.Cache = 0
+	s.ContentType = "text/html"
+	s.Gzip = false
+}
+
+type MethodProvider interface {
+	Httpize(methods Methods)
+}
+
 func NewHandler(provider MethodProvider) *Handler {
 	h := new(Handler)
-	h.methods = NewMethods(provider)
+	h.methods = make(Methods)
+
+	if provider != nil {
+		provider.Httpize(h.methods)
+        h.methods.getProviderMethods(provider)
+	}
+
 	h.defaultSettings = new(Settings)
 	h.defaultSettings.SetToDefault()
 	return h
+}
+
+
+// Handled errors are considered 500 errors unless specifically of type:
+type Non500Error struct {
+	ErrorCode int
+	ErrorStr  string
+	Location  string
+}
+
+func (e Non500Error) Error() string {
+	return e.ErrorStr
 }
 
 func fiveHundredError(resp http.ResponseWriter) {
@@ -49,8 +83,8 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	pathParts := strings.Split(req.URL.Path, "/")
 	methodName := pathParts[len(pathParts)-1]
-	call := h.methods.GetCaller(methodName)
-	if call == nil {
+	call, ok := h.methods[methodName]
+	if !ok {
 		fiveHundredError(resp)
 		log.Printf("Method %s not defined (URL: %s)", methodName, req.URL.String())
 		return
@@ -63,7 +97,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	foundArgs, err := call.BuildArgs(func(s string) (string, bool) {
+	foundArgs, err := call.buildArgs(func(s string) (string, bool) {
 		v, ok := getParam[s]
 		if !ok {
 			return "", false
@@ -89,13 +123,13 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if len(foundArgs) != call.ArgCount() || len(foundArgs) != getParamCount {
+	if len(foundArgs) != call.argCount() || len(foundArgs) != getParamCount {
 		fiveHundredError(resp)
 		log.Printf("%s called incorrectly (URL: %s)", methodName, req.URL.String())
 		return
 	}
 
-	reader, settings, err := call.Call(foundArgs)
+	reader, settings, err := call.call(foundArgs)
 
 	if err != nil {
 		providerError(err, resp)
