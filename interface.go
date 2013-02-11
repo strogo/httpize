@@ -4,6 +4,11 @@ type MethodProvider interface {
 	Httpize(methods Methods)
 }
 
+type ArgDef struct {
+	Name       string
+	CreateFunc interface{}
+}
+
 type Arg interface {
 	Check() error
 }

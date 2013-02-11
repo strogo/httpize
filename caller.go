@@ -61,11 +61,8 @@ func (m Methods) GetCaller(name string) *Caller {
 	return caller
 }
 
-func (m Methods) Add(methodName string, argNames []string, argCreateFuncs []interface{}) {
-	numArgs := len(argNames)
-	if numArgs != len(argCreateFuncs) {
-		panic("Add method fail, argNames and argCreateFuncs array have different length")
-	}
+func (m Methods) Add(methodName string, args []ArgDef) {
+	numArgs := len(args)
 	if numArgs > 10 {
 		panic("Add method fail, too many parameters (>10)")
 	}
@@ -73,9 +70,9 @@ func (m Methods) Add(methodName string, argNames []string, argCreateFuncs []inte
 	caller := new(Caller)
 	caller.args = make([]Args, numArgs)
 	for i := 0; i < numArgs; i++ {
-		caller.args[i].name = argNames[i]
+		caller.args[i].name = args[i].Name
 
-		v := reflect.ValueOf(argCreateFuncs[i])
+		v := reflect.ValueOf(args[i].CreateFunc)
 		if v.Kind() != reflect.Func {
 			panic("argCreateFunc is not a function")
 		}
