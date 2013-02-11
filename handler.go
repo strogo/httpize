@@ -11,13 +11,13 @@ import (
 )
 
 type Handler struct {
-	caller          *Caller
+	methods         Methods
 	defaultSettings *Settings
 }
 
 func NewHandler(provider MethodProvider) *Handler {
 	h := new(Handler)
-	h.caller = NewCaller(provider)
+	h.methods = NewMethods(provider)
 	h.defaultSettings = new(Settings)
 	h.defaultSettings.SetToDefault()
 	return h
@@ -49,7 +49,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	pathParts := strings.Split(req.URL.Path, "/")
 	methodName := pathParts[len(pathParts)-1]
-	call := h.caller.GetMethod(methodName)
+	call := h.methods.GetCaller(methodName)
 	if call == nil {
 		fiveHundredError(resp)
 		log.Printf("Method %s not defined (URL: %s)", methodName, req.URL.String())

@@ -10,62 +10,55 @@ import (
 
 var notArg error = errors.New("Argument is not of type httpize.Arg")
 
+type Methods map[string]*Caller
+
 type Caller struct {
-	provider MethodProvider
-	methods  Methods
-}
-
-type Methods map[string]*CallDef
-
-type CallDef struct {
 	methodFunc reflect.Value
-	argDefs    []ArgDef
+	args       []Args
 }
 
-type ArgDef struct {
+type Args struct {
 	name       string
 	createFunc reflect.Value
 }
 
-func NewCaller(provider MethodProvider) *Caller {
-	var c Caller
-	c.provider = provider
-	c.methods = make(Methods)
+func NewMethods(provider MethodProvider) Methods {
+	m := make(Methods)
 
-	if c.provider != nil {
-		c.provider.Httpize(c.methods)
+	if provider != nil {
+		provider.Httpize(m)
 	}
 
-	for methodName, callDef := range c.methods {
-		v := reflect.ValueOf(c.provider)
+	for methodName, caller := range m {
+		v := reflect.ValueOf(provider)
 		if v.Kind() == reflect.Invalid {
 			panic("MethodProvider not valid")
 		}
-		m := v.MethodByName(methodName)
-		if m.Kind() != reflect.Func {
+		me := v.MethodByName(methodName)
+		if me.Kind() != reflect.Func {
 			panic("Method not func")
 		}
-		if m.Type().NumOut() != 3 ||
-			m.Type().Out(0).String() != "io.Reader" ||
-			m.Type().Out(1).String() != "*httpize.Settings" ||
-			m.Type().Out(2).String() != "error" {
+		if me.Type().NumOut() != 3 ||
+			me.Type().Out(0).String() != "io.Reader" ||
+			me.Type().Out(1).String() != "*httpize.Settings" ||
+			me.Type().Out(2).String() != "error" {
 			panic(fmt.Sprintf(
 				"Method %s does not return (io.Reader, *httpize.Settings, error)",
 				methodName,
 			))
 		}
-		callDef.methodFunc = m
+		caller.methodFunc = me
 	}
 
-	return &c
+	return m
 }
 
-func (c *Caller) GetMethod(name string) *CallDef {
-	callDef, ok := c.methods[name]
+func (m Methods) GetCaller(name string) *Caller {
+	caller, ok := m[name]
 	if !ok {
 		return nil
 	}
-	return callDef
+	return caller
 }
 
 func (m Methods) Add(methodName string, argNames []string, argCreateFuncs []interface{}) {
@@ -77,10 +70,10 @@ func (m Methods) Add(methodName string, argNames []string, argCreateFuncs []inte
 		panic("Add method fail, too many parameters (>10)")
 	}
 
-	callDef := new(CallDef)
-	callDef.argDefs = make([]ArgDef, numArgs)
+	caller := new(Caller)
+	caller.args = make([]Args, numArgs)
 	for i := 0; i < numArgs; i++ {
-		callDef.argDefs[i].name = argNames[i]
+		caller.args[i].name = argNames[i]
 
 		v := reflect.ValueOf(argCreateFuncs[i])
 		if v.Kind() != reflect.Func {
@@ -92,32 +85,32 @@ func (m Methods) Add(methodName string, argNames []string, argCreateFuncs []inte
 		if v.Type().NumOut() != 1 {
 			panic("argCreateFunc missing return value")
 		}
-		callDef.argDefs[i].createFunc = v
+		caller.args[i].createFunc = v
 	}
-	m[methodName] = callDef
+	m[methodName] = caller
 }
 
-func (c *CallDef) ArgCount() int {
-	return len(c.argDefs)
+func (c *Caller) ArgCount() int {
+	return len(c.args)
 }
 
-func (c *CallDef) BuildArgs(f func(s string) (string, bool)) ([]reflect.Value, error) {
+func (c *Caller) BuildArgs(f func(s string) (string, bool)) ([]reflect.Value, error) {
 	var argReflect [10]reflect.Value
 
 	found := 0
 	numArgs := c.ArgCount()
 	for i := 0; i < numArgs; i++ {
-		if v, ok := f(c.argDefs[i].name); ok {
+		if v, ok := f(c.args[i].name); ok {
 			var getValueReflect [1]reflect.Value
 			getValueReflect[0] = reflect.ValueOf(v)
-			argReflect[i] = c.argDefs[i].createFunc.Call(getValueReflect[:])[0]
+			argReflect[i] = c.args[i].createFunc.Call(getValueReflect[:])[0]
 			if arg, ok := argReflect[i].Interface().(Arg); ok {
 				err := arg.Check()
 				if err != nil {
 					return nil, err
 				}
 			} else {
-				log.Printf("Parameter %s not type httpize.Arg", c.argDefs[i].name)
+				log.Printf("Parameter %s not type httpize.Arg", c.args[i].name)
 				return nil, notArg
 			}
 			found++
@@ -127,7 +120,7 @@ func (c *CallDef) BuildArgs(f func(s string) (string, bool)) ([]reflect.Value, e
 	return argReflect[:found], nil
 }
 
-func (c *CallDef) Call(args []reflect.Value) (io.Reader, *Settings, error) {
+func (c *Caller) Call(args []reflect.Value) (io.Reader, *Settings, error) {
 	rvals := c.methodFunc.Call(args)
 
 	// error can be not type error if nil for some reason
