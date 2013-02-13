@@ -5,71 +5,71 @@ import (
 	"reflect"
 )
 
-// Used by MethodProvider.Httpize()
-type Exports struct {
-	methods map[string]*caller
+// MethodProvider is implemented by types that want be able to export methods.
+type MethodProvider interface {
+	Httpize() Exports
 }
 
-// ArgDef defines a the Name of an argument and the CreateFunc that creates the
-// argument from a string value.
+// Exports is a map where keys are names of MethodProvider methods  
+// and values are ParamDef. A Method will be called when a HTTP
+// requests where the last part of the URL.Host matches the key is handled.
+// Exported methods must have paramater types that match the returned types
+// from ParamDef.CreateFunc and return (io.Reader, *httpize.Settings, error). If 
+// Settings is nil, default httpize settings are used.
+type Exports map[string][]ParamDef
+
+// ParamDef defines a the Name of a parameter and the CreateFunc that creates the
+// argument to be passed to the exported method from a string value obtained
+// from a URL parameter with the same name.
 // CreateFunc must be a func(string) and have a return a type that implements 
 // httpize.Arg. 
-type ArgDef struct {
+type ParamDef struct {
 	Name       string
 	CreateFunc interface{}
 }
 
-// Add adds a method methodName that is called with arguments argDefs
-// to be exported. methodName must be the name of a method defined in 
-// the MethodProvider whose parameters match the []ArgDef and returns
-// (io.Reader, *httpize.Settings, error). If Settings is nil, default httpize 
-// settings are used.
-func (e *Exports) Add(methodName string, argDefs []ArgDef) {
-	numArgs := len(argDefs)
-	if numArgs > 10 {
-		panic("Add method fail, too many parameters (>10)")
-	}
-
-	caller := new(caller)
-	caller.args = make([]args, numArgs)
-	for i := 0; i < numArgs; i++ {
-		caller.args[i].name = argDefs[i].Name
-
-		v := reflect.ValueOf(argDefs[i].CreateFunc)
-		if v.Kind() != reflect.Func {
-			panic("argCreateFunc is not a function")
-		}
-		if v.Type().NumIn() != 1 && v.Type().In(0).Kind() != reflect.String {
-			panic("argCreateFunc incorrect parameter")
-		}
-		if v.Type().NumOut() != 1 {
-			panic("argCreateFunc missing return value")
-		}
-		caller.args[i].createFunc = v
-	}
-	e.methods[methodName] = caller
-}
-
-func (e *Exports) getProviderMethods(provider MethodProvider) {
-	v := reflect.ValueOf(provider)
+func buildCalls(p MethodProvider) map[string]*caller {
+	v := reflect.ValueOf(p)
 	if v.Kind() == reflect.Invalid {
 		panic("MethodProvider not valid")
 	}
 
-	for methodName, caller := range e.methods {
-		me := v.MethodByName(methodName)
-		if me.Kind() != reflect.Func {
+	calls := make(map[string]*caller)
+
+	exports := p.Httpize()
+	for exportName, argDefs := range exports {
+		m := v.MethodByName(exportName)
+		if m.Kind() != reflect.Func {
 			panic("Method not func")
 		}
-		if me.Type().NumOut() != 3 ||
-			me.Type().Out(0).String() != "io.Reader" ||
-			me.Type().Out(1).String() != "*httpize.Settings" ||
-			me.Type().Out(2).String() != "error" {
+		if m.Type().NumOut() != 3 ||
+			m.Type().Out(0).String() != "io.Reader" ||
+			m.Type().Out(1).String() != "*httpize.Settings" ||
+			m.Type().Out(2).String() != "error" {
 			panic(fmt.Sprintf(
-				"Method %s does not return (io.Reader, *httpize.Settings, error)",
-				methodName,
+				"Export %s does not return (io.Reader, *httpize.Settings, error)",
+				exportName,
 			))
 		}
-		caller.methodFunc = me
+
+		a := make([]argBuilder, len(argDefs))
+		for i := 0; i < len(argDefs); i++ {
+			w := reflect.ValueOf(argDefs[i].CreateFunc)
+			if w.Kind() != reflect.Func {
+				panic("ArgDef.CreateFunc is not a function")
+			}
+			if w.Type().NumIn() != 1 && w.Type().In(0).Kind() != reflect.String {
+				panic("ArgDef.CreateFunc incorrect parameter")
+			}
+			if w.Type().NumOut() != 1 {
+				panic("ArgDef.CreateFunc missing return value")
+			}
+			a[i].name = argDefs[i].Name
+			a[i].createFunc = w
+		}
+
+		calls[exportName] = &caller{m, a}
 	}
+
+	return calls
 }

@@ -12,7 +12,7 @@ import (
 
 // Handler implements http.Handler
 type Handler struct {
-	exports         *Exports
+	calls           map[string]*caller
 	defaultSettings *Settings
 }
 
@@ -31,22 +31,13 @@ func (s *Settings) SetToDefault() {
 	s.Gzip = false
 }
 
-// MethodProvider is implemented by types that want be able to export methods.
-// exports.Add() can be used in Httpize to export methods.  
-type MethodProvider interface {
-	Httpize(exports *Exports)
-}
-
 // NewHandler creates a Handler that serves requests to methods exported by
 // a MethodProvider.
 func NewHandler(provider MethodProvider) *Handler {
 	h := new(Handler)
-	h.exports = new(Exports)
-	h.exports.methods = make(map[string]*caller)
 
 	if provider != nil {
-		provider.Httpize(h.exports)
-		h.exports.getProviderMethods(provider)
+		h.calls = buildCalls(provider)
 	}
 
 	h.defaultSettings = new(Settings)
@@ -93,7 +84,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	pathParts := strings.Split(req.URL.Path, "/")
 	methodName := pathParts[len(pathParts)-1]
-	call, ok := h.exports.methods[methodName]
+	call, ok := h.calls[methodName]
 	if !ok {
 		fiveHundredError(resp)
 		log.Printf("Method %s not defined (URL: %s)", methodName, req.URL.String())
@@ -133,7 +124,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if len(foundArgs) != call.argCount() || len(foundArgs) != getParamCount {
+	if len(foundArgs) != call.paramCount() || len(foundArgs) != getParamCount {
 		fiveHundredError(resp)
 		log.Printf("%s called incorrectly (URL: %s)", methodName, req.URL.String())
 		return
