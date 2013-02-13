@@ -46,9 +46,9 @@ func (w *WebLog) Read() (io.Reader, *httpize.Settings, error) {
 	return buf, nil, nil
 }
 
-func (w *WebLog) Httpize(methods httpize.Methods) {
-	methods.Add("Log", []httpize.ArgDef{{"m", NewLogMessage}})
-	methods.Add("Read", []httpize.ArgDef{})
+func (w *WebLog) Httpize(exports *httpize.Exports) {
+	exports.Add("Log", []httpize.ArgDef{{"m", NewLogMessage}})
+	exports.Add("Read", []httpize.ArgDef{})
 }
 
 func main() {

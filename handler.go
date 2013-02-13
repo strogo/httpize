@@ -12,7 +12,7 @@ import (
 
 // Handler implements http.Handler
 type Handler struct {
-	methods         Methods
+	exports         *Exports
 	defaultSettings *Settings
 }
 
@@ -32,20 +32,21 @@ func (s *Settings) SetToDefault() {
 }
 
 // MethodProvider is implemented by types that want be able to export methods.
-// methods.Add() can be used in Httpize to export methods.  
+// exports.Add() can be used in Httpize to export methods.  
 type MethodProvider interface {
-	Httpize(methods Methods)
+	Httpize(exports *Exports)
 }
 
 // NewHandler creates a Handler that serves requests to methods exported by
 // a MethodProvider.
 func NewHandler(provider MethodProvider) *Handler {
 	h := new(Handler)
-	h.methods = make(Methods)
+	h.exports = new(Exports)
+	h.exports.methods = make(map[string]*caller)
 
 	if provider != nil {
-		provider.Httpize(h.methods)
-		h.methods.getProviderMethods(provider)
+		provider.Httpize(h.exports)
+		h.exports.getProviderMethods(provider)
 	}
 
 	h.defaultSettings = new(Settings)
@@ -92,7 +93,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	pathParts := strings.Split(req.URL.Path, "/")
 	methodName := pathParts[len(pathParts)-1]
-	call, ok := h.methods[methodName]
+	call, ok := h.exports.methods[methodName]
 	if !ok {
 		fiveHundredError(resp)
 		log.Printf("Method %s not defined (URL: %s)", methodName, req.URL.String())

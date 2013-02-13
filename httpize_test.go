@@ -32,12 +32,12 @@ type TestApiProvider struct {
 	settings *Settings
 }
 
-func (t *TestApiProvider) Httpize(methods Methods) {
+func (t *TestApiProvider) Httpize(exports *Exports) {
 	//    methods.Add("Echo", []ArgDef{ArgDef{"name", NewTestParamType}})
-	methods.Add("Echo", []ArgDef{{"name", NewTestParamType}})
-	methods.Add("Greeting", []ArgDef{})
-	methods.Add("ThreeOhThree", []ArgDef{})
-	methods.Add("BadEcho", []ArgDef{{"name", NewTestParamType2}})
+	exports.Add("Echo", []ArgDef{{"name", NewTestParamType}})
+	exports.Add("Greeting", []ArgDef{})
+	exports.Add("ThreeOhThree", []ArgDef{})
+	exports.Add("BadEcho", []ArgDef{{"name", NewTestParamType2}})
 }
 
 func (t *TestApiProvider) Echo(name TestParamType) (io.Reader, *Settings, error) {
@@ -176,8 +176,8 @@ func TestTestApiProvider(t *testing.T) {
 
 type TestApiProviderPanic struct{}
 
-func (t *TestApiProviderPanic) Httpize(methods Methods) {
-	methods.Add("Echo", []ArgDef{{"name", NewTestParamType}})
+func (t *TestApiProviderPanic) Httpize(exports *Exports) {
+	exports.Add("Echo", []ArgDef{{"name", NewTestParamType}})
 }
 
 func (t *TestApiProviderPanic) Echo(name TestParamType) (int, error) {
