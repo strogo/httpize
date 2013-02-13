@@ -1,4 +1,3 @@
-// httpize exports method of a given type to handle HTTP requests
 package httpize
 
 import (
