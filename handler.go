@@ -1,3 +1,4 @@
+// httpize exports method of a given type to handle HTTP requests
 package httpize
 
 import (
@@ -10,34 +11,42 @@ import (
 	"time"
 )
 
+// Handler implements http.Handler
 type Handler struct {
 	methods         Methods
 	defaultSettings *Settings
 }
 
+// Settings has options for handling HTTP request.
 type Settings struct {
 	Cache       int64
 	ContentType string
 	Gzip        bool
 }
 
+// SetToDefault sets: Cache = 0, Content-type = text/html, 
+// gzip false.
 func (s *Settings) SetToDefault() {
 	s.Cache = 0
 	s.ContentType = "text/html"
 	s.Gzip = false
 }
 
+// MethodProvider is implemented by types that want be able to export methods.
+// methods.Add() can be used in Httpize to export methods.  
 type MethodProvider interface {
 	Httpize(methods Methods)
 }
 
+// NewHandler creates a Handler that serves requests to methods exported by
+// a MethodProvider.
 func NewHandler(provider MethodProvider) *Handler {
 	h := new(Handler)
 	h.methods = make(Methods)
 
 	if provider != nil {
 		provider.Httpize(h.methods)
-        h.methods.getProviderMethods(provider)
+		h.methods.getProviderMethods(provider)
 	}
 
 	h.defaultSettings = new(Settings)
@@ -45,8 +54,9 @@ func NewHandler(provider MethodProvider) *Handler {
 	return h
 }
 
-
-// Handled errors are considered 500 errors unless specifically of type:
+// Non500Error is an error that can be returned by exported methods or an Arg 
+// Check() method. Errors are considered 500 errors unless specifically of 
+// this type.
 type Non500Error struct {
 	ErrorCode int
 	ErrorStr  string

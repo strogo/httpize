@@ -1,17 +1,27 @@
 package httpize
 
 import (
-    "fmt"
-    "reflect"
+	"fmt"
+	"reflect"
 )
 
+// Used by MethodProvider.Httpize()
 type Methods map[string]*caller
 
+// ArgDef defines a the Name of an argument and the CreateFunc that creates the
+// argument from a string value.
+// CreateFunc must be a func(string) and have a return a type that implements 
+// httpize.Arg. 
 type ArgDef struct {
 	Name       string
 	CreateFunc interface{}
 }
 
+// Add adds a method methodName that is called with arguments argDefs
+// to be exported. methodName must be the name of a defined method that 
+// whose parameters match the []ArgDef and returns
+// (io.Reader, *httpize.Settings, error). If Settings is nil, default httpize 
+// settings are used.
 func (m Methods) Add(methodName string, argDefs []ArgDef) {
 	numArgs := len(argDefs)
 	if numArgs > 10 {

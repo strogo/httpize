@@ -21,6 +21,9 @@ func (c *caller) argCount() int {
 	return len(c.args)
 }
 
+// Arg interface must be implemented by types that are used as parameters to
+// exported methods. Arg.Check() is called on all arguments before calling an
+// exported method, if it returns an error the call is not made.
 type Arg interface {
 	Check() error
 }
