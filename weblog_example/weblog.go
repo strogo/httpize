@@ -1,58 +1,58 @@
-package httpize
+package main
 
 import (
-    "net/http"
-    "errors"
-    "bytes"
-    "io"
+	"bytes"
+	"errors"
+	"httpize"
+	"io"
+	"net/http"
 )
 
 type LogMessage string
 
 func (l LogMessage) Check() error {
-    if l == "" {
-        return errors.New("empty log message")
-    }
-    return nil
+	if l == "" {
+		return errors.New("empty log message")
+	}
+	return nil
 }
 
 func (l LogMessage) String() string {
-    return string(l)
+	return string(l)
 }
 
 func NewLogMessage(init string) LogMessage {
-    return LogMessage(init)
+	return LogMessage(init)
 }
-
 
 type WebLog struct {
-    messages []LogMessage
+	messages []LogMessage
 }
 
-func (w *WebLog) Log(m LogMessage) (io.Reader, *Settings, error) {
-    w.messages = append(w.messages, m)
-    return bytes.NewBufferString(""), nil, nil
+func (w *WebLog) Log(m LogMessage) (io.Reader, *httpize.Settings, error) {
+	w.messages = append(w.messages, m)
+	return bytes.NewBufferString(""), nil, nil
 }
 
-func (w *WebLog) Read() (io.Reader, *Settings, error) {
-    buf := bytes.NewBufferString("")
-    for i := 0; i < len(w.messages); i++ {
-        _, err := buf.WriteString(w.messages[i].String() + "\n")
-        if err != nil {
-            return nil, nil, err
-        }
-    }
-    
-    return buf, nil, nil
+func (w *WebLog) Read() (io.Reader, *httpize.Settings, error) {
+	buf := bytes.NewBufferString("")
+	for i := 0; i < len(w.messages); i++ {
+		_, err := buf.WriteString(w.messages[i].String() + "\n")
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return buf, nil, nil
 }
 
-func (w *WebLog) Httpize(methods Methods) {
-    methods.Add("Log", []ArgDef{{"m", NewLogMessage}})
-    methods.Add("Read", []ArgDef{})
+func (w *WebLog) Httpize(methods httpize.Methods) {
+	methods.Add("Log", []httpize.ArgDef{{"m", NewLogMessage}})
+	methods.Add("Read", []httpize.ArgDef{})
 }
 
-func ExampleWebLog() {
-    var w WebLog
-    http.Handle("/", NewHandler(&w))
-    http.ListenAndServe(":9000", nil)    
+func main() {
+	var w WebLog
+	http.Handle("/", httpize.NewHandler(&w))
+	http.ListenAndServe(":9000", nil)
 }
