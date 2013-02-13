@@ -1,7 +1,7 @@
 /*
 httpize exports method of a given type to handle HTTP requests.
 
-It allows you to create and http.Handler tied to a variable whose type 
+It allows you to create a http.Handler tied to a variable whose type 
 implements httpize.MethodProvider. Any HTTP request routed to the handler,
 will be checked to see if the URL matchs the name of a method of the 
 MethodProvider which was exported. If so each parameter to the method 
