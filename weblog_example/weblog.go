@@ -57,4 +57,8 @@ func main() {
 	var w WebLog
 	http.Handle("/", httpize.NewHandler(&w))
 	http.ListenAndServe(":9000", nil)
+
+	// Can now access the methods using:
+	// http://localhost:9000/app/Log?m=Hello World!
+	// http://localhost:9000/app/Read"	
 }
