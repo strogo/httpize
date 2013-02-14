@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
-	"httpize"
+	"github.com/timob/httpize"
 	"io"
 	"net/http"
 )
