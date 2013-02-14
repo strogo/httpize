@@ -1,5 +1,5 @@
 /*
-httpize exports method of a given type to handle HTTP requests.
+httpize export methods of a given variable to handle HTTP requests.
 
 It allows you to create a http.Handler tied to a variable whose type 
 implements httpize.MethodProvider. Any HTTP request routed to the handler,
