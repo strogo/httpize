@@ -12,7 +12,7 @@ type MethodProvider interface {
 
 // Exports is a map where keys are names of MethodProvider methods  
 // and values are ParamDef. A Method will be called when a HTTP
-// requests where the last part of the URL.Host matches the key is handled.
+// request where the last part of the URL.Path matches the key.
 // Exported methods must have paramater types that match the returned types
 // from ParamDef.CreateFunc and return (io.Reader, *httpize.Settings, error). If 
 // Settings is nil, default httpize settings are used.
