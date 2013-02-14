@@ -55,7 +55,7 @@ func (w *WebLog) Httpize() httpize.Exports {
 
 func main() {
 	var w WebLog
-	http.Handle("/", httpize.NewHandler(&w))
+	http.Handle("/app/", httpize.NewHandler(&w))
 	http.ListenAndServe(":9000", nil)
 
 	// Can now access the methods using:
