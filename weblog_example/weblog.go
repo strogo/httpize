@@ -29,12 +29,12 @@ type WebLog struct {
 	messages []LogMessage
 }
 
-func (w *WebLog) Log(m LogMessage) (io.Reader, *httpize.Settings, error) {
+func (w *WebLog) Log(m LogMessage) (io.WriterTo, *httpize.Settings, error) {
 	w.messages = append(w.messages, m)
 	return bytes.NewBufferString(""), nil, nil
 }
 
-func (w *WebLog) Read() (io.Reader, *httpize.Settings, error) {
+func (w *WebLog) Read() (io.WriterTo, *httpize.Settings, error) {
 	buf := bytes.NewBufferString("")
 	for i := 0; i < len(w.messages); i++ {
 		_, err := buf.WriteString(w.messages[i].String() + "\n")

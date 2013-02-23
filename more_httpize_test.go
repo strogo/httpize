@@ -41,20 +41,20 @@ func (t *TestApiProvider) Httpize() Exports {
 	}
 }
 
-func (t *TestApiProvider) Echo(name TestParamType) (io.Reader, *Settings, error) {
+func (t *TestApiProvider) Echo(name TestParamType) (io.WriterTo, *Settings, error) {
 	return bytes.NewBufferString("Echo " + string(name)), t.settings, nil
 }
 
-func (t *TestApiProvider) Greeting() (io.Reader, *Settings, error) {
+func (t *TestApiProvider) Greeting() (io.WriterTo, *Settings, error) {
 	return bytes.NewBufferString("Hello World"), t.settings, nil
 }
 
-func (t *TestApiProvider) ThreeOhThree() (io.Reader, *Settings, error) {
+func (t *TestApiProvider) ThreeOhThree() (io.WriterTo, *Settings, error) {
 	err := Non500Error{303, "See Other", "http://lookhere"}
 	return nil, t.settings, err
 }
 
-func (t *TestApiProvider) BadEcho(name TestParamType) (io.Reader, *Settings, error) {
+func (t *TestApiProvider) BadEcho(name TestParamType) (io.WriterTo, *Settings, error) {
 	return bytes.NewBufferString("Echo " + string(name)), nil, nil
 }
 

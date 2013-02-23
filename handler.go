@@ -1,6 +1,7 @@
 package httpize
 
 import (
+	"bufio"
 	"compress/gzip"
 	"io"
 	"log"
@@ -130,7 +131,7 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	reader, settings, err := call.call(foundArgs)
+	writerTo, settings, err := call.call(foundArgs)
 
 	if err != nil {
 		providerError(err, resp)
@@ -160,13 +161,20 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		compress = resp
 	}
 
-	if reader == nil {
+	if writerTo == nil {
 		fiveHundredError(resp)
-		log.Printf("Method %s returned nil reader and error", methodName)
+		log.Printf("Method %s returned nil WriterTo and error", methodName)
 		return
 	}
 
-	_, err = io.Copy(compress, reader)
+	buffer := bufio.NewWriter(compress)
+	_, err = writerTo.WriteTo(buffer)
+	if err != nil {
+		fiveHundredError(resp)
+		log.Print(err)
+	}
+
+	err = buffer.Flush()
 	if err != nil {
 		fiveHundredError(resp)
 		log.Print(err)

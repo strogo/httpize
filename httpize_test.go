@@ -33,7 +33,7 @@ func (s *SimpleMethodProvider) Httpize() Exports {
 	}
 }
 
-func (s *SimpleMethodProvider) Echo(thing SafeString) (io.Reader, *Settings, error) {
+func (s *SimpleMethodProvider) Echo(thing SafeString) (io.WriterTo, *Settings, error) {
 	return bytes.NewBufferString("Echo " + string(thing)), nil, nil
 }
 

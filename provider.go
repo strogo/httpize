@@ -43,11 +43,11 @@ func buildCalls(p MethodProvider) map[string]*caller {
 			panic("Method not func")
 		}
 		if m.Type().NumOut() != 3 ||
-			m.Type().Out(0).String() != "io.Reader" ||
+			m.Type().Out(0).String() != "io.WriterTo" ||
 			m.Type().Out(1).String() != "*httpize.Settings" ||
 			m.Type().Out(2).String() != "error" {
 			panic(fmt.Sprintf(
-				"Export %s does not return (io.Reader, *httpize.Settings, error)",
+				"Export %s does not return (io.WriterTo, *httpize.Settings, error)",
 				exportName,
 			))
 		}

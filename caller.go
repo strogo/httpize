@@ -59,7 +59,7 @@ func (c *caller) buildArgs(f func(s string) (string, bool)) ([]reflect.Value, er
 	return argValues[:found], nil
 }
 
-func (c *caller) call(a []reflect.Value) (io.Reader, *Settings, error) {
+func (c *caller) call(a []reflect.Value) (io.WriterTo, *Settings, error) {
 	rvals := c.methodFunc.Call(a)
 
 	// error can be not type error if nil for some reason
@@ -67,6 +67,6 @@ func (c *caller) call(a []reflect.Value) (io.Reader, *Settings, error) {
 		return nil, nil, err
 	}
 	settings := rvals[1].Interface().(*Settings)
-	reader := rvals[0].Interface().(io.Reader)
-	return reader, settings, nil
+	writerTo := rvals[0].Interface().(io.WriterTo)
+	return writerTo, settings, nil
 }
