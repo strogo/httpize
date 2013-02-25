@@ -20,16 +20,16 @@ func (d SafeString) Check() error {
 	return nil
 }
 
-func NewSafeString(value string) SafeString {
+var _ = AddType("SafeString", func(value string) SafeString {
 	return SafeString(value)
-}
+})
 
 // A MethodProvider that exports an Echo Method
 type SimpleMethodProvider struct{}
 
 func (s *SimpleMethodProvider) Httpize() Exports {
 	return Exports{
-		"Echo": {{"thing", NewSafeString}},
+		"Echo": {"thing"},
 	}
 }
 

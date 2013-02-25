@@ -20,9 +20,9 @@ func (d TestParamType) Check() error {
 	return nil
 }
 
-func NewTestParamType(value string) TestParamType {
+var _ = AddType("TestParamType", func(value string) TestParamType {
 	return TestParamType(value)
-}
+})
 
 func NewTestParamType2(a string) int {
 	return 42
@@ -34,10 +34,9 @@ type TestApiProvider struct {
 
 func (t *TestApiProvider) Httpize() Exports {
 	return Exports{
-		"Echo":         {{"name", NewTestParamType}},
+		"Echo":         {"name"},
 		"Greeting":     {},
 		"ThreeOhThree": {},
-		"BadEcho":      {},
 	}
 }
 
@@ -168,18 +167,13 @@ func TestTestApiProvider(t *testing.T) {
 	if _, ok := recorder.HeaderMap["Content-Encoding"]; ok {
 		t.Fatalf("Unexpected Content-Encoding")
 	}
-
-	recorder = httptest.NewRecorder()
-	request, _ = http.NewRequest("GET", "http://host/path/BadEcho?name=Gopher", nil)
-	h.ServeHTTP(recorder, request)
-	checkCode(t, recorder, 500)
 }
 
 type TestApiProviderPanic struct{}
 
 func (t *TestApiProviderPanic) Httpize() Exports {
 	return Exports{
-		"Echo": {{"name", NewTestParamType}},
+		"Echo": {"name"},
 	}
 }
 

@@ -16,7 +16,7 @@ type MethodProvider interface {
 // Exported methods must have paramater types that match the returned types
 // from ParamDef.CreateFunc and return (io.Reader, *httpize.Settings, error). If 
 // Settings is nil, default httpize settings are used.
-type Exports map[string][]ParamDef
+type Exports map[string][]string
 
 // ParamDef defines a the Name of a parameter and the CreateFunc that creates the
 // argument to be passed to the exported method from a string value obtained
@@ -28,6 +28,13 @@ type ParamDef struct {
 	CreateFunc interface{}
 }
 
+var Types = make(map[string]interface{})
+
+func AddType(name string, createFunc interface{}) bool {
+	Types[name] = createFunc
+	return true
+}
+
 func buildCalls(p MethodProvider) map[string]*caller {
 	v := reflect.ValueOf(p)
 	if v.Kind() == reflect.Invalid {
@@ -37,7 +44,7 @@ func buildCalls(p MethodProvider) map[string]*caller {
 	calls := make(map[string]*caller)
 
 	exports := p.Httpize()
-	for exportName, argDefs := range exports {
+	for exportName, paramNames := range exports {
 		m := v.MethodByName(exportName)
 		if m.Kind() != reflect.Func {
 			panic("Method not func")
@@ -51,10 +58,17 @@ func buildCalls(p MethodProvider) map[string]*caller {
 				exportName,
 			))
 		}
+		if m.Type().NumIn() != len(paramNames) {
+			panic(fmt.Sprintf("Incorrect parameter count for %s", exportName))
+		}
 
-		a := make([]argBuilder, len(argDefs))
-		for i := 0; i < len(argDefs); i++ {
-			w := reflect.ValueOf(argDefs[i].CreateFunc)
+		a := make([]argBuilder, len(paramNames))
+		for i := 0; i < len(paramNames); i++ {
+			createFunc, ok := Types[m.Type().In(i).Name()]
+			if !ok {
+				panic(m.Type().In(i).Name() + " not a Httpize registered type")
+			}
+			w := reflect.ValueOf(createFunc)
 			if w.Kind() != reflect.Func {
 				panic("ArgDef.CreateFunc is not a function")
 			}
@@ -64,7 +78,7 @@ func buildCalls(p MethodProvider) map[string]*caller {
 			if w.Type().NumOut() != 1 {
 				panic("ArgDef.CreateFunc missing return value")
 			}
-			a[i].name = argDefs[i].Name
+			a[i].name = paramNames[i]
 			a[i].createFunc = w
 		}
 

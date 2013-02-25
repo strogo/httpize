@@ -21,9 +21,9 @@ func (l LogMessage) String() string {
 	return string(l)
 }
 
-func NewLogMessage(init string) LogMessage {
-	return LogMessage(init)
-}
+var _ = httpize.AddType("LogMessage", func(value string) LogMessage {
+	return LogMessage(value)
+})
 
 type WebLog struct {
 	messages []LogMessage
@@ -48,7 +48,7 @@ func (w *WebLog) Read() (io.WriterTo, *httpize.Settings, error) {
 
 func (w *WebLog) Httpize() httpize.Exports {
 	return httpize.Exports{
-		"Log":  {{"m", NewLogMessage}},
+		"Log":  {"m"},
 		"Read": {},
 	}
 }
