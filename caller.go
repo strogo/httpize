@@ -1,9 +1,7 @@
 package httpize
 
 import (
-	"errors"
 	"io"
-	"log"
 	"reflect"
 )
 
@@ -21,14 +19,12 @@ type caller struct {
 
 type argBuilder struct {
 	name       string
-	createFunc reflect.Value
+	createFunc CreateArgFromStringFunc
 }
 
 func (c *caller) paramCount() int {
 	return len(c.argBuilders)
 }
-
-var notArg error = errors.New("Argument is not of type httpize.Arg")
 
 func (c *caller) buildArgs(f func(s string) (string, bool)) ([]reflect.Value, error) {
 	paramCount := c.paramCount()
@@ -37,21 +33,12 @@ func (c *caller) buildArgs(f func(s string) (string, bool)) ([]reflect.Value, er
 	found := 0
 	for i := 0; i < paramCount; i++ {
 		if v, ok := f(c.argBuilders[i].name); ok {
-			var initString [1]reflect.Value
-			initString[0] = reflect.ValueOf(v)
-			argValues[i] = c.argBuilders[i].createFunc.Call(initString[:])[0]
-			if arg, ok := argValues[i].Interface().(Arg); ok {
-				err := arg.Check()
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				log.Printf(
-					"Parameter %s not type httpize.Arg",
-					c.argBuilders[i].name,
-				)
-				return nil, notArg
+			arg := c.argBuilders[i].createFunc(v)
+			err := arg.Check()
+			if err != nil {
+				return nil, err
 			}
+			argValues[i] = reflect.ValueOf(arg)
 			found++
 		}
 	}

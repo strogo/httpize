@@ -20,7 +20,7 @@ func (d TestParamType) Check() error {
 	return nil
 }
 
-var _ = AddType("TestParamType", func(value string) TestParamType {
+var _ = AddType("TestParamType", func(value string) Arg {
 	return TestParamType(value)
 })
 

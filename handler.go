@@ -108,14 +108,8 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		if err == notArg {
-			fiveHundredError(resp)
-			log.Printf("Parameter in Method %s is not of type http.Arg", methodName)
-			return
-		} else {
-			providerError(err, resp)
-			return
-		}
+		providerError(err, resp)
+		return
 	}
 
 	getParamCount := 0

@@ -23,15 +23,17 @@ type Exports map[string][]string
 // from a URL parameter with the same name.
 // CreateFunc must be a func(string) and have a return a type that implements 
 // httpize.Arg. 
-type ParamDef struct {
-	Name       string
-	CreateFunc interface{}
-}
+//type ParamDef struct {
+//	Name       string
+//	Type       string
+//}
 
-var Types = make(map[string]interface{})
+type CreateArgFromStringFunc func(string) Arg
 
-func AddType(name string, createFunc interface{}) bool {
-	Types[name] = createFunc
+var Types = make(map[string]CreateArgFromStringFunc)
+
+func AddType(name string, f CreateArgFromStringFunc) bool {
+	Types[name] = f
 	return true
 }
 
@@ -68,18 +70,8 @@ func buildCalls(p MethodProvider) map[string]*caller {
 			if !ok {
 				panic(m.Type().In(i).Name() + " not a Httpize registered type")
 			}
-			w := reflect.ValueOf(createFunc)
-			if w.Kind() != reflect.Func {
-				panic("ArgDef.CreateFunc is not a function")
-			}
-			if w.Type().NumIn() != 1 && w.Type().In(0).Kind() != reflect.String {
-				panic("ArgDef.CreateFunc incorrect parameter")
-			}
-			if w.Type().NumOut() != 1 {
-				panic("ArgDef.CreateFunc missing return value")
-			}
 			a[i].name = paramNames[i]
-			a[i].createFunc = w
+			a[i].createFunc = createFunc
 		}
 
 		calls[exportName] = &caller{m, a}
