@@ -8,16 +8,17 @@ import (
 var exports = make(map[string]map[string][]string)
 
 // Export will tell Handlers created with a value whose type is named 
-// typeName to call the method named methodName when the last part of URL.Path
-// matches methodName. paramNames are names of URL parameters that will be 
+// t to call the method named m when the last part of URL.Path
+// matches m. p are names of URL parameters that will be 
 // used to create arguments to the corresponding parameters of the method.
-// Must be called before NewHandler. typeName must include package prefix.
+// Methods named m must return (io.WriterTo, *httpize.Settings, error)
+// Must be called before NewHandler. t must include package prefix.
 // Always returns true.
-func Export(typeName, methodName string, paramNames ...string) bool {
-	if _, ok := exports[typeName]; !ok {
-		exports[typeName] = make(map[string][]string)
+func Export(t, m string, p ...string) bool {
+	if _, ok := exports[t]; !ok {
+		exports[t] = make(map[string][]string)
 	}
-	exports[typeName][methodName] = paramNames
+	exports[t][m] = p
 	return true
 }
 
