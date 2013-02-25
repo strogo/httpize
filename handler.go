@@ -19,9 +19,12 @@ type Handler struct {
 
 // Settings has options for handling HTTP request.
 type Settings struct {
-	Cache       int64
+	// Seconds to cache for
+	Cache int64
+	// Content-Type header
 	ContentType string
-	Gzip        bool
+	// Use Gzip
+	Gzip bool
 }
 
 // SetToDefault sets: Cache = 0, Content-type = text/html, 
@@ -32,8 +35,8 @@ func (s *Settings) SetToDefault() {
 	s.Gzip = false
 }
 
-// NewHandler creates a Handler that serves requests to methods exported by
-// a MethodProvider.
+// NewHandler creates a Handler that serves requests to methods of provider
+// that have been exported by Export().
 func NewHandler(provider interface{}) *Handler {
 	h := new(Handler)
 
