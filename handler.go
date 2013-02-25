@@ -34,7 +34,7 @@ func (s *Settings) SetToDefault() {
 
 // NewHandler creates a Handler that serves requests to methods exported by
 // a MethodProvider.
-func NewHandler(provider MethodProvider) *Handler {
+func NewHandler(provider interface{}) *Handler {
 	h := new(Handler)
 
 	if provider != nil {

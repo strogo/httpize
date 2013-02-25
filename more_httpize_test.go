@@ -24,44 +24,37 @@ var _ = AddType("TestParamType", func(value string) Arg {
 	return TestParamType(value)
 })
 
-func NewTestParamType2(a string) int {
-	return 42
-}
-
 type TestApiProvider struct {
 	settings *Settings
 }
 
-func (t *TestApiProvider) Httpize() Exports {
-	return Exports{
-		"Echo":         {"name"},
-		"Greeting":     {},
-		"ThreeOhThree": {},
-	}
-}
+var _ = Export("*httpize.TestApiProvider", "Echo", "name")
 
 func (t *TestApiProvider) Echo(name TestParamType) (io.WriterTo, *Settings, error) {
 	return bytes.NewBufferString("Echo " + string(name)), t.settings, nil
 }
 
+var _ = Export("*httpize.TestApiProvider", "Greeting")
+
 func (t *TestApiProvider) Greeting() (io.WriterTo, *Settings, error) {
 	return bytes.NewBufferString("Hello World"), t.settings, nil
 }
+
+var _ = Export("*httpize.TestApiProvider", "ThreeOhThree")
 
 func (t *TestApiProvider) ThreeOhThree() (io.WriterTo, *Settings, error) {
 	err := Non500Error{303, "See Other", "http://lookhere"}
 	return nil, t.settings, err
 }
 
-func (t *TestApiProvider) BadEcho(name TestParamType) (io.WriterTo, *Settings, error) {
-	return bytes.NewBufferString("Echo " + string(name)), nil, nil
-}
+var count int = 0
 
 func checkCode(t *testing.T, r *httptest.ResponseRecorder, code int) {
 	if r.Code != code {
-		t.Fatalf("%d %v %s", r.Code, r.HeaderMap, r.Body)
+		t.Fatalf("%d %d %v %s", count, r.Code, r.HeaderMap, r.Body)
 	}
-	t.Logf("%d %v %s", r.Code, r.HeaderMap, r.Body)
+	t.Logf("%d %d %v %s", count, r.Code, r.HeaderMap, r.Body)
+	count++
 }
 
 func TestTestApiProvider(t *testing.T) {
@@ -171,11 +164,7 @@ func TestTestApiProvider(t *testing.T) {
 
 type TestApiProviderPanic struct{}
 
-func (t *TestApiProviderPanic) Httpize() Exports {
-	return Exports{
-		"Echo": {"name"},
-	}
-}
+var _ = Export("*httpize.TestApiProviderPanic", "Echo", "name")
 
 func (t *TestApiProviderPanic) Echo(name TestParamType) (int, error) {
 	return 42, nil

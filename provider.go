@@ -6,9 +6,9 @@ import (
 )
 
 // MethodProvider is implemented by types that want be able to export methods.
-type MethodProvider interface {
-	Httpize() Exports
-}
+//type MethodProvider interface {
+//	Httpize() Exports
+//}
 
 // Exports is a map where keys are names of MethodProvider methods  
 // and values are ParamDef. A Method will be called when a HTTP
@@ -16,7 +16,15 @@ type MethodProvider interface {
 // Exported methods must have paramater types that match the returned types
 // from ParamDef.CreateFunc and return (io.Reader, *httpize.Settings, error). If 
 // Settings is nil, default httpize settings are used.
-type Exports map[string][]string
+var exports = make(map[string]map[string][]string)
+
+func Export(typeName, methodName string, paramNames ...string) bool {
+	if _, ok := exports[typeName]; !ok {
+		exports[typeName] = make(map[string][]string)
+	}
+	exports[typeName][methodName] = paramNames
+	return true
+}
 
 // ParamDef defines a the Name of a parameter and the CreateFunc that creates the
 // argument to be passed to the exported method from a string value obtained
@@ -37,17 +45,21 @@ func AddType(name string, f CreateArgFromStringFunc) bool {
 	return true
 }
 
-func buildCalls(p MethodProvider) map[string]*caller {
-	v := reflect.ValueOf(p)
+func buildCalls(provider interface{}) map[string]*caller {
+	v := reflect.ValueOf(provider)
 	if v.Kind() == reflect.Invalid {
 		panic("MethodProvider not valid")
 	}
 
 	calls := make(map[string]*caller)
 
-	exports := p.Httpize()
-	for exportName, paramNames := range exports {
+	providerName := v.Type().String()
+	providerExports := exports[providerName]
+	for exportName, paramNames := range providerExports {
 		m := v.MethodByName(exportName)
+		if m.Kind() == reflect.Invalid {
+			panic("Cant find " + providerName + " " + exportName)
+		}
 		if m.Kind() != reflect.Func {
 			panic("Method not func")
 		}
