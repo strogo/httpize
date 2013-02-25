@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-// Handler implements http.Handler
 type Handler struct {
 	calls           map[string]*caller
 	defaultSettings *Settings

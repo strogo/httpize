@@ -19,7 +19,7 @@ type caller struct {
 
 type argBuilder struct {
 	name       string
-	createFunc CreateArgFromStringFunc
+	createFunc createArgFromStringFunc
 }
 
 func (c *caller) paramCount() int {

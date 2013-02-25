@@ -6,32 +6,36 @@ import (
 	"github.com/timob/httpize"
 	"io"
 	"net/http"
+	"time"
 )
 
-type LogMessage string
+type LogMessage struct {
+	timestamp time.Time
+	msg       string
+}
 
-func (l LogMessage) Check() error {
-	if l == "" {
+func (l *LogMessage) Check() error {
+	if l.msg == "" {
 		return errors.New("empty log message")
 	}
 	return nil
 }
 
-func (l LogMessage) String() string {
-	return string(l) + "\n"
+func (l *LogMessage) String() string {
+	return l.timestamp.Format(time.UnixDate) + ": " + string(l.msg) + "\n"
 }
 
-var _ = httpize.AddType("LogMessage", func(value string) httpize.Arg {
-	return LogMessage(value)
+var _ = httpize.AddType("*main.LogMessage", func(value string) httpize.Arg {
+	return &LogMessage{time.Now(), value}
 })
 
 type WebLog struct {
-	messages []LogMessage
+	messages []*LogMessage
 }
 
 var _ = httpize.Export("*main.WebLog", "Log", "msg")
 
-func (w *WebLog) Log(msg LogMessage) (io.WriterTo, *httpize.Settings, error) {
+func (w *WebLog) Log(msg *LogMessage) (io.WriterTo, *httpize.Settings, error) {
 	w.messages = append(w.messages, msg)
 	return bytes.NewBufferString(""), nil, nil
 }
@@ -53,7 +57,7 @@ func (w *WebLog) Read() (io.WriterTo, *httpize.Settings, error) {
 func main() {
 	var w WebLog
 	http.Handle("/app/", httpize.NewHandler(&w))
-	http.ListenAndServe(":9000", nil)
+	http.ListenAndServe(":9001", nil)
 
 	// Can now access the methods using:
 	// http://localhost:9000/app/Log?m=Hello World!

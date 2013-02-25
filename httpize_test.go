@@ -20,7 +20,7 @@ func (d SafeString) Check() error {
 	return nil
 }
 
-var _ = AddType("SafeString", func(value string) Arg {
+var _ = AddType("httpize.SafeString", func(value string) Arg {
 	return SafeString(value)
 })
 

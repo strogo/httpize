@@ -5,19 +5,14 @@ import (
 	"reflect"
 )
 
-// Exports is a map where keys are names of MethodProvider methods  
-// and values are ParamDef. A Method will be called when a HTTP
-// request where the last part of the URL.Path matches the key.
-// Exported methods must have paramater types that match the returned types
-// from ParamDef.CreateFunc and return (io.Reader, *httpize.Settings, error). If 
-// Settings is nil, default httpize settings are used.
 var exports = make(map[string]map[string][]string)
 
-// Export will tell Handlers tied to a value whose type is named 
+// Export will tell Handlers created with a value whose type is named 
 // typeName to call the method named methodName when the last part of URL.Path
 // matches methodName. paramNames are names of URL parameters that will be 
 // used to create arguments to the corresponding parameters of the method.
-// Must be called before NewHandler.
+// Must be called before NewHandler. typeName must include package prefix.
+// Always returns true.
 func Export(typeName, methodName string, paramNames ...string) bool {
 	if _, ok := exports[typeName]; !ok {
 		exports[typeName] = make(map[string][]string)
@@ -26,17 +21,15 @@ func Export(typeName, methodName string, paramNames ...string) bool {
 	return true
 }
 
-// CreateArgFromStringFunc is a function that will transform a string value of a
-// URL parameter to an argument to be used in a method call.
-type CreateArgFromStringFunc func(string) Arg
+type createArgFromStringFunc func(string) Arg
 
-var types = make(map[string]CreateArgFromStringFunc)
+var types = make(map[string]createArgFromStringFunc)
 
 // AddType allows a type named t to be use in parameters of exported methods.
-// f must be a CreateArgFromStringFunc whose return value is assignable to the type
-// named t.
-func AddType(t string, f CreateArgFromStringFunc) bool {
-	types[t] = f
+// f must be a function whose return value is assignable to the type
+// named t and implements Arg. t must include package prefix. Always returns true.
+func AddType(t string, f func(string) Arg) bool {
+	types[t] = createArgFromStringFunc(f)
 	return true
 }
 
@@ -73,9 +66,9 @@ func buildCalls(provider interface{}) map[string]*caller {
 
 		a := make([]argBuilder, len(paramNames))
 		for i := 0; i < len(paramNames); i++ {
-			createFunc, ok := types[m.Type().In(i).Name()]
+			createFunc, ok := types[m.Type().In(i).String()]
 			if !ok {
-				panic(m.Type().In(i).Name() + " not a Httpize registered type")
+				panic(m.Type().In(i).String() + " not a Httpize registered type")
 			}
 			a[i].name = paramNames[i]
 			a[i].createFunc = createFunc
