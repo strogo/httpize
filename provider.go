@@ -11,7 +11,7 @@ var exports = make(map[string]map[string][]string)
 // t to call the method named m when the last part of URL.Path
 // matches m. p are names of URL parameters that will be 
 // used to create arguments to the corresponding parameters of the method.
-// Methods named m must return (io.WriterTo, *httpize.Settings, error)
+// Methods must return (io.WriterTo, *httpize.Settings, error).
 // Must be called before NewHandler. t must include package prefix.
 // Always returns true.
 func Export(t, m string, p ...string) bool {
