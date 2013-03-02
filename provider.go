@@ -52,8 +52,10 @@ func Export(m interface{}, e string, p ...string) bool {
 var types = make(map[string]func(string) Arg)
 
 // AddType allows a type named t to be use in parameters of exported methods.
-// f must be a function whose return value is assignable to the type
-// named t and implements Arg. t must include package prefix. Always returns true.
+// f must be a function whose return value is assignable to a variable whose type
+// is named t and implements Arg. f will be called passing the value of a 
+// URL parameter to create a new instance of the type. t must include package 
+// prefix. Always returns true.
 func AddType(t string, f func(string) Arg) bool {
 	types[t] = f
 	return true
