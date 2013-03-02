@@ -18,32 +18,31 @@ type caller struct {
 }
 
 type argBuilder struct {
-	name       string
-	createFunc createArgFromStringFunc
+	key        string
+	createFunc func(string) Arg
 }
 
 func (c *caller) paramCount() int {
 	return len(c.argBuilders)
 }
 
-func (c *caller) buildArgs(f func(s string) (string, bool)) ([]reflect.Value, error) {
+func (c *caller) buildArgs(argValues []reflect.Value, f func(s string) (string, bool)) (int, error) {
 	paramCount := c.paramCount()
-	argValues := make([]reflect.Value, paramCount)
 
 	found := 0
 	for i := 0; i < paramCount; i++ {
-		if v, ok := f(c.argBuilders[i].name); ok {
+		if v, ok := f(c.argBuilders[i].key); ok {
 			arg := c.argBuilders[i].createFunc(v)
 			err := arg.Check()
 			if err != nil {
-				return nil, err
+				return found, err
 			}
 			argValues[i] = reflect.ValueOf(arg)
 			found++
 		}
 	}
 
-	return argValues[:found], nil
+	return found, nil
 }
 
 func (c *caller) call(a []reflect.Value) (io.WriterTo, *Settings, error) {

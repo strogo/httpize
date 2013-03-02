@@ -27,7 +27,7 @@ var _ = AddType("httpize.SafeString", func(value string) Arg {
 // A MethodProvider that exports an Echo Method
 type SimpleMethodProvider struct{}
 
-var _ = Export("*httpize.SimpleMethodProvider", "Echo", "thing")
+var _ = Export((*SimpleMethodProvider).Echo, "Echo", "thing")
 
 func (s *SimpleMethodProvider) Echo(thing SafeString) (io.WriterTo, *Settings, error) {
 	return bytes.NewBufferString("Echo " + string(thing)), nil, nil

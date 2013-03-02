@@ -33,14 +33,14 @@ type WebLog struct {
 	messages []*LogMessage
 }
 
-var _ = httpize.Export("*main.WebLog", "Log", "msg")
+var _ = httpize.Export((*WebLog).Log, "Log", "msg")
 
 func (w *WebLog) Log(msg *LogMessage) (io.WriterTo, *httpize.Settings, error) {
 	w.messages = append(w.messages, msg)
 	return bytes.NewBufferString(""), nil, nil
 }
 
-var _ = httpize.Export("*main.WebLog", "Read")
+var _ = httpize.Export((*WebLog).Read, "Read")
 
 func (w *WebLog) Read() (io.WriterTo, *httpize.Settings, error) {
 	buf := bytes.NewBufferString("")

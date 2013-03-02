@@ -28,19 +28,19 @@ type TestApiProvider struct {
 	settings *Settings
 }
 
-var _ = Export("*httpize.TestApiProvider", "Echo", "name")
+var _ = Export((*TestApiProvider).Echo, "Echo", "name")
 
 func (t *TestApiProvider) Echo(name TestParamType) (io.WriterTo, *Settings, error) {
 	return bytes.NewBufferString("Echo " + string(name)), t.settings, nil
 }
 
-var _ = Export("*httpize.TestApiProvider", "Greeting")
+var _ = Export((*TestApiProvider).Greeting, "Greeting")
 
 func (t *TestApiProvider) Greeting() (io.WriterTo, *Settings, error) {
 	return bytes.NewBufferString("Hello World"), t.settings, nil
 }
 
-var _ = Export("*httpize.TestApiProvider", "ThreeOhThree")
+var _ = Export((*TestApiProvider).ThreeOhThree, "ThreeOhThree")
 
 func (t *TestApiProvider) ThreeOhThree() (io.WriterTo, *Settings, error) {
 	err := Non500Error{303, "See Other", "http://lookhere"}
@@ -164,8 +164,6 @@ func TestTestApiProvider(t *testing.T) {
 
 type TestApiProviderPanic struct{}
 
-var _ = Export("*httpize.TestApiProviderPanic", "Echo", "name")
-
 func (t *TestApiProviderPanic) Echo(name TestParamType) (int, error) {
 	return 42, nil
 }
@@ -177,6 +175,7 @@ func TestTestApiProviderPanic(t *testing.T) {
 		defer func() {
 			err = recover()
 		}()
+		Export((*TestApiProviderPanic).Echo, "Echo", "name")
 		NewHandler(&a)
 	}()
 	if err == nil {

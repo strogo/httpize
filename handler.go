@@ -7,13 +7,15 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 )
 
 type Handler struct {
-	calls           map[string]*caller
-	defaultSettings *Settings
+	providerValue    reflect.Value
+	providerTypeName string
+	defaultSettings  *Settings
 }
 
 // Settings has options for handling HTTP request.
@@ -39,8 +41,9 @@ func (s *Settings) SetToDefault() {
 func NewHandler(provider interface{}) *Handler {
 	h := new(Handler)
 
-	if provider != nil {
-		h.calls = buildCalls(provider)
+	h.providerValue = reflect.ValueOf(provider)
+	if h.providerValue.Kind() != reflect.Invalid {
+		h.providerTypeName = h.providerValue.Type().String()
 	}
 
 	h.defaultSettings = new(Settings)
@@ -87,10 +90,15 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	pathParts := strings.Split(req.URL.Path, "/")
 	methodName := pathParts[len(pathParts)-1]
-	call, ok := h.calls[methodName]
+	call, ok := calls[h.providerTypeName+"-"+methodName]
 	if !ok {
 		fiveHundredError(resp)
-		log.Printf("Method %s not defined (URL: %s)", methodName, req.URL.String())
+		log.Printf(
+			"Export %s (%s) not defined (URL: %s)",
+			methodName,
+			h.providerTypeName,
+			req.URL.String(),
+		)
 		return
 	}
 
@@ -101,7 +109,9 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	foundArgs, err := call.buildArgs(func(s string) (string, bool) {
+	argValues := make([]reflect.Value, call.paramCount()+1)
+	argValues[0] = h.providerValue
+	foundArgs, err := call.buildArgs(argValues[1:], func(s string) (string, bool) {
 		v, ok := getParam[s]
 		if !ok {
 			return "", false
@@ -121,13 +131,13 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if len(foundArgs) != call.paramCount() || len(foundArgs) != getParamCount {
+	if foundArgs != call.paramCount() || foundArgs != getParamCount {
 		fiveHundredError(resp)
 		log.Printf("%s called incorrectly (URL: %s)", methodName, req.URL.String())
 		return
 	}
 
-	writerTo, settings, err := call.call(foundArgs)
+	writerTo, settings, err := call.call(argValues)
 
 	if err != nil {
 		providerError(err, resp)
