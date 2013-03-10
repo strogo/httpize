@@ -1,11 +1,11 @@
 /*
 Httpize is a web framework, that allows you use methods/types in web requests.
 
-Create a http.Handler tied to a value. Any HTTP request 
-routed to the handler, will be checked to see if the URL matchs the name of a 
-method of the which was exported. If so each parameter to the method 
-will be created from the URL parameters, checked and passed to the method.
-On returning the exported method returns a io.WriterTo used to create the HTTP 
-response body.
+A value that has a method with a correct signature can be exported so that,
+the method will be called on the value for a HTTP request. This is achieved by:
+Adding types to be created by the handler from HTTP requests using AddType.
+Exporting methods that will be called by the the handler using Export.
+Creating handlers for a value that has exported methods. Handlers are then passed
+to http.Handle in the normal way.
 */
 package httpize

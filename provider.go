@@ -7,11 +7,10 @@ import (
 
 var calls = make(map[string]*caller)
 
-// Export will tell Handlers created with a value that have a method 
-// m to call m when the last part of URL.Path
-// matches e. p are names of URL parameters that will be 
-// used to create arguments to the corresponding parameters of the method.
-// m must return (io.WriterTo, *httpize.Settings, error).
+// Export method to be called by Handler. m: method to be called, must return
+// (io.WriterTo, *httpize.Settings, error), paramers types must be registered
+// with AddType. e: string to be matched to last part of URL.Path. p: URL
+// parameters used create arguments to the corresponding parameters of the method.
 // Must be called before NewHandler. Always returns true.
 func Export(m interface{}, e string, p ...string) bool {
 	mv := reflect.ValueOf(m)
@@ -38,7 +37,7 @@ func Export(m interface{}, e string, p ...string) bool {
 	for i := 0; i < len(p); i++ {
 		createFunc, ok := types[mv.Type().In(i+1).String()]
 		if !ok {
-			panic(mv.Type().In(i).String() + " not a Httpize registered type")
+			panic(mv.Type().In(i+1).String() + " not a Httpize registered type")
 		}
 		a[i].key = p[i]
 		a[i].createFunc = createFunc
@@ -51,11 +50,10 @@ func Export(m interface{}, e string, p ...string) bool {
 
 var types = make(map[string]func(string) Arg)
 
-// AddType allows a type named t to be use in parameters of exported methods.
-// f must be a function whose return value is assignable to a variable whose type
-// is named t and implements Arg. f will be called passing the value of a 
-// URL parameter to create a new instance of the type. t must include package 
-// prefix. Always returns true.
+// Add type to be used in parameters of exported methods. t: name of a Go type
+// to export, must include package prefix. f: a function to create a new instance
+// of the type, will be passed a value of a URL parameter, type must implement
+// Arg. Allways returns true.
 func AddType(t string, f func(string) Arg) bool {
 	types[t] = f
 	return true
