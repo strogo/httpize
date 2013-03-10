@@ -60,6 +60,6 @@ func main() {
 	http.ListenAndServe(":9001", nil)
 
 	// Can now access the methods using:
-	// http://localhost:9000/app/Log?m=Hello World!
+	// http://localhost:9000/app/Log?msg=Hello World!
 	// http://localhost:9000/app/Read
 }
