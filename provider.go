@@ -8,7 +8,7 @@ import (
 var calls = make(map[string]*caller)
 
 // Export method to be called by Handler. m: method func to be called, must return
-// (io.WriterTo, *httpize.Settings, error), method parametersrs types must be registered
+// (io.WriterTo, *httpize.Settings, error), method parameter types must be registered
 // with AddType. e: string to be matched to last part of URL.Path. p: URL
 // parameters used create arguments to the corresponding parameters of the method.
 // Must be called before NewHandler. Always returns true.
