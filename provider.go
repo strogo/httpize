@@ -11,11 +11,11 @@ import (
 var handlers = make(map[string]http.Handler)
 
 func Export(c Caller, d string) bool {
-	re, _ := regexp.Compile("^([^\\(]+)\\(([0-9,a-z,A-Z,_, ,\t]*)\\)$")
+	re, _ := regexp.Compile("^([^\\(]+)\\(([*,0-9,a-z,A-Z,_, ,\t]*)\\)$")
 	parts := re.FindStringSubmatch(d)
 
 	if len(parts) != 3 {
-		log.Println("httpize.Export handler pattern wrong")
+		log.Printf("httpize.Export handler pattern wrong. %s", d)
 		return true
 	}
 	pathParts := strings.Split(parts[1], "/")
@@ -31,10 +31,10 @@ func Export(c Caller, d string) bool {
 
 	a := make([]argBuilder, len(params))
 	for i, s := range params {
-		re, _ = regexp.Compile("([0-9,a-z,A-Z,_]+)\\s+([0-9,a-z,A-Z,_]+)")
+		re, _ = regexp.Compile("([0-9,a-z,A-Z,_]+)\\s+([*,0-9,a-z,A-Z,_]+)")
 		paramParts := re.FindStringSubmatch(s)
 		if len(paramParts) != 3 {
-			log.Println("httpize.Export handler pattern wrong")
+			log.Printf("httpize.Export handler pattern wrong. %s", d)
 			return true
 		}
 		createFunc, ok := types[paramParts[2]]
