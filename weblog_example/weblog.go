@@ -25,41 +25,44 @@ func (l *LogMessage) String() string {
 	return l.timestamp.Format(time.UnixDate) + ": " + string(l.msg) + "\n"
 }
 
-var _ = httpize.AddType("*main.LogMessage", func(value string) httpize.Arg {
+var _ = httpize.AddType("*LogMessage", func(value string) httpize.Arg {
 	return &LogMessage{time.Now(), value}
 })
 
-type WebLog struct {
-	messages []*LogMessage
-}
+type WebLogApi func(*bytes.Buffer, []httpize.Arg) error
 
-var _ = httpize.Export((*WebLog).Log, "Log", "msg")
-
-func (w *WebLog) Log(msg *LogMessage) (io.WriterTo, *httpize.Settings, error) {
-	w.messages = append(w.messages, msg)
-	return bytes.NewBufferString(""), nil, nil
-}
-
-var _ = httpize.Export((*WebLog).Read, "Read")
-
-func (w *WebLog) Read() (io.WriterTo, *httpize.Settings, error) {
+func (f WebLogApi) Call(args []httpize.Arg) (io.WriterTo, *httpize.Settings, error) {
 	buf := bytes.NewBufferString("")
-	for _, msg := range w.messages {
+	err := f(buf, args)
+	return buf, nil, err
+}
+
+var webLog = make([]*LogMessage, 0)
+
+var _ = httpize.Export(WebLogApi(Log), "/Log(msg *LogMessage)")
+
+func Log(buf *bytes.Buffer, args []httpize.Arg) error {
+	msg := args[0].(*LogMessage)
+	webLog = append(webLog, msg)
+	return nil
+}
+
+var _ = httpize.Export(WebLogApi(Read), "/Read()")
+
+func Read(buf *bytes.Buffer, args []httpize.Arg) error {
+	for _, msg := range webLog {
 		_, err := buf.WriteString(msg.String())
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
 	}
-
-	return buf, nil, nil
+	return nil
 }
 
 func main() {
-	var w WebLog
-	http.Handle("/app/", httpize.NewHandler(&w))
 	http.ListenAndServe(":9001", nil)
 
 	// Can now access the methods using:
-	// http://localhost:9001/app/Log?msg=Hello World!
-	// http://localhost:9001/app/Read
+	// http://localhost:9001/Log?msg=Hello World
+	// http://localhost:9001/Read
 }
