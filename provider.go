@@ -1,49 +1,59 @@
 package httpize
 
 import (
-	"fmt"
-	"reflect"
+	"log"
+	"net/http"
+	"regexp"
+	"strings"
 )
 
-var calls = make(map[string]*caller)
+// for testing
+var handlers = make(map[string]http.Handler)
 
-// Export method to be called by Handler. m: method func to be called, must return
-// (io.WriterTo, *httpize.Settings, error), method parameter types must be registered
-// with AddType. e: string to be matched to last part of URL.Path. p: URL
-// parameters used create arguments to the corresponding parameters of the method.
-// Must be called before NewHandler. Always returns true.
-func Export(m interface{}, e string, p ...string) bool {
-	mv := reflect.ValueOf(m)
+func Export(c Caller, d string) bool {
+	re, _ := regexp.Compile("^([^\\(]+)\\(([0-9,a-z,A-Z,_, ,\t]*)\\)$")
+	parts := re.FindStringSubmatch(d)
 
-	if mv.Kind() != reflect.Func || mv.Type().NumIn() == 0 {
-		panic(fmt.Sprintf("Export is not method (%s)", mv.String()))
+	if len(parts) != 3 {
+		log.Println("httpize.Export handler pattern wrong")
+		return true
+	}
+	pathParts := strings.Split(parts[1], "/")
+	l := len(pathParts)
+	path := strings.Join(pathParts[0:l-1], "/")
+	name := pathParts[l-1]
+
+	params := strings.Split(parts[2], ",")
+	re, _ = regexp.Compile("^\\s*$")
+	if re.MatchString(parts[2]) {
+		params = []string{}
 	}
 
-	if mv.Type().NumOut() != 3 ||
-		mv.Type().Out(0).String() != "io.WriterTo" ||
-		mv.Type().Out(1).String() != "*httpize.Settings" ||
-		mv.Type().Out(2).String() != "error" {
-		panic(fmt.Sprintf(
-			"Export %s does not return (io.WriterTo, *httpize.Settings, error)",
-			mv.String(),
-		))
-	}
-
-	if mv.Type().NumIn()-1 != len(p) {
-		panic(fmt.Sprintf("Incorrect parameter count for %s", e))
-	}
-
-	a := make([]argBuilder, len(p))
-	for i := 0; i < len(p); i++ {
-		createFunc, ok := types[mv.Type().In(i+1).String()]
-		if !ok {
-			panic(mv.Type().In(i+1).String() + " not a Httpize registered type")
+	a := make([]argBuilder, len(params))
+	for i, s := range params {
+		re, _ = regexp.Compile("([0-9,a-z,A-Z,_]+)\\s+([0-9,a-z,A-Z,_]+)")
+		paramParts := re.FindStringSubmatch(s)
+		if len(paramParts) != 3 {
+			log.Println("httpize.Export handler pattern wrong")
+			return true
 		}
-		a[i].key = p[i]
+		createFunc, ok := types[paramParts[2]]
+		if !ok {
+			log.Println("httpize.Export: " + paramParts[2] + " not a Httpize registered type")
+		}
+
+		a[i].key = paramParts[1]
 		a[i].createFunc = createFunc
 	}
 
-	calls[mv.Type().In(0).String()+"-"+e] = &caller{mv, a}
+	ds := new(Settings)
+	ds.SetToDefault()
+
+	handler := &handler{c, a, ds}
+	http.Handle(path+"/"+name, handler)
+
+	// for tests to access handler
+	handlers[d] = handler
 
 	return true
 }

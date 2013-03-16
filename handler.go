@@ -7,15 +7,14 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strings"
 	"time"
 )
 
-type Handler struct {
-	providerValue    reflect.Value
-	providerTypeName string
-	defaultSettings  *Settings
+type handler struct {
+	caller          Caller
+	argBuilders     argBuilderSlice
+	defaultSettings *Settings
 }
 
 // Settings has options for handling HTTP request.
@@ -34,21 +33,6 @@ func (s *Settings) SetToDefault() {
 	s.Cache = 0
 	s.ContentType = "text/html"
 	s.Gzip = false
-}
-
-// NewHandler creates a Handler that serves requests to methods of provider
-// that have been exported by Export().
-func NewHandler(provider interface{}) *Handler {
-	h := new(Handler)
-
-	h.providerValue = reflect.ValueOf(provider)
-	if h.providerValue.Kind() != reflect.Invalid {
-		h.providerTypeName = h.providerValue.Type().String()
-	}
-
-	h.defaultSettings = new(Settings)
-	h.defaultSettings.SetToDefault()
-	return h
 }
 
 // Non500Error is an error that can be returned by exported methods or an Arg 
@@ -81,7 +65,7 @@ func providerError(err error, resp http.ResponseWriter) {
 	}
 }
 
-func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+func (h *handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" && req.Method != "POST" {
 		fiveHundredError(resp)
 		log.Printf("Unsupported HTTP method: %s", req.Method)
@@ -90,17 +74,6 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	pathParts := strings.Split(req.URL.Path, "/")
 	methodName := pathParts[len(pathParts)-1]
-	call, ok := calls[h.providerTypeName+"-"+methodName]
-	if !ok {
-		fiveHundredError(resp)
-		log.Printf(
-			"Export %s (%s) not defined (URL: %s)",
-			methodName,
-			h.providerTypeName,
-			req.URL.String(),
-		)
-		return
-	}
 
 	getParam, err := url.ParseQuery(req.URL.RawQuery)
 	if err != nil {
@@ -109,9 +82,9 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	argValues := make([]reflect.Value, call.paramCount()+1)
-	argValues[0] = h.providerValue
-	foundArgs, err := call.buildArgs(argValues[1:], func(s string) (string, bool) {
+	paramCount := len(h.argBuilders)
+	args := make([]Arg, paramCount)
+	foundArgs, err := h.argBuilders.buildArgs(args, func(s string) (string, bool) {
 		v, ok := getParam[s]
 		if !ok {
 			return "", false
@@ -131,13 +104,13 @@ func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if foundArgs != call.paramCount() || foundArgs != getParamCount {
+	if foundArgs != paramCount || foundArgs != getParamCount {
 		fiveHundredError(resp)
 		log.Printf("%s called incorrectly (URL: %s)", methodName, req.URL.String())
 		return
 	}
 
-	writerTo, settings, err := call.call(argValues)
+	writerTo, settings, err := h.caller.Call(args)
 
 	if err != nil {
 		providerError(err, resp)

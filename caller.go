@@ -2,8 +2,11 @@ package httpize
 
 import (
 	"io"
-	"reflect"
 )
+
+type Caller interface {
+	Call(args []Arg) (io.WriterTo, *Settings, error)
+}
 
 // Arg interface must be implemented by types that are used as parameters to
 // exported methods. Arg.Check() is called on all arguments before calling an
@@ -12,47 +15,28 @@ type Arg interface {
 	Check() error
 }
 
-type caller struct {
-	methodFunc  reflect.Value
-	argBuilders []argBuilder
-}
+type argBuilderSlice []argBuilder
 
 type argBuilder struct {
 	key        string
 	createFunc func(string) Arg
 }
 
-func (c *caller) paramCount() int {
-	return len(c.argBuilders)
-}
-
-func (c *caller) buildArgs(argValues []reflect.Value, f func(s string) (string, bool)) (int, error) {
-	paramCount := c.paramCount()
+func (b argBuilderSlice) buildArgs(args []Arg, f func(s string) (string, bool)) (int, error) {
+	paramCount := len(b)
 
 	found := 0
 	for i := 0; i < paramCount; i++ {
-		if v, ok := f(c.argBuilders[i].key); ok {
-			arg := c.argBuilders[i].createFunc(v)
+		if v, ok := f(b[i].key); ok {
+			arg := b[i].createFunc(v)
 			err := arg.Check()
 			if err != nil {
 				return found, err
 			}
-			argValues[i] = reflect.ValueOf(arg)
+			args[i] = arg
 			found++
 		}
 	}
 
 	return found, nil
-}
-
-func (c *caller) call(a []reflect.Value) (io.WriterTo, *Settings, error) {
-	rvals := c.methodFunc.Call(a)
-
-	// error can be not type error if nil for some reason
-	if err, isError := rvals[2].Interface().(error); isError && err != nil {
-		return nil, nil, err
-	}
-	settings := rvals[1].Interface().(*Settings)
-	writerTo := rvals[0].Interface().(io.WriterTo)
-	return writerTo, settings, nil
 }

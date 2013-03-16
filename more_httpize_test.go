@@ -2,49 +2,42 @@ package httpize
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 )
 
-type TestParamType string
+// Http Settings
+var settings = new(Settings)
 
-func (d TestParamType) Check() error {
-	if strings.Contains(string(d), "'") {
-		return errors.New("TestParamType in wrong format")
-	}
-	return nil
+// A type that will be used as a httpize.Caller
+type CommonFunc func([]Arg) (io.WriterTo, error)
+
+func (f CommonFunc) Call(args []Arg) (io.WriterTo, *Settings, error) {
+	writerTo, err := f(args)
+	return writerTo, settings, err
 }
 
-var _ = AddType("httpize.TestParamType", func(value string) Arg {
-	return TestParamType(value)
-})
+var _ = Export(CommonFunc(Echo), "/Echo(name SafeString)")
 
-type TestApiProvider struct {
-	settings *Settings
+func Echo(args []Arg) (io.WriterTo, error) {
+	name := args[0].(SafeString)
+	return bytes.NewBufferString("Echo " + string(name)), nil
 }
 
-var _ = Export((*TestApiProvider).Echo, "Echo", "name")
+var _ = Export(CommonFunc(Greeting), "/Greeting()")
 
-func (t *TestApiProvider) Echo(name TestParamType) (io.WriterTo, *Settings, error) {
-	return bytes.NewBufferString("Echo " + string(name)), t.settings, nil
+func Greeting(args []Arg) (io.WriterTo, error) {
+	return bytes.NewBufferString("Hello World"), nil
 }
 
-var _ = Export((*TestApiProvider).Greeting, "Greeting")
+var _ = Export(CommonFunc(ThreeOhThree), "/ThreeOhThree()")
 
-func (t *TestApiProvider) Greeting() (io.WriterTo, *Settings, error) {
-	return bytes.NewBufferString("Hello World"), t.settings, nil
-}
-
-var _ = Export((*TestApiProvider).ThreeOhThree, "ThreeOhThree")
-
-func (t *TestApiProvider) ThreeOhThree() (io.WriterTo, *Settings, error) {
+func ThreeOhThree(args []Arg) (io.WriterTo, error) {
 	err := Non500Error{303, "See Other", "http://lookhere"}
-	return nil, t.settings, err
+	return nil, err
 }
 
 var count int = 0
@@ -58,8 +51,9 @@ func checkCode(t *testing.T, r *httptest.ResponseRecorder, code int) {
 }
 
 func TestTestApiProvider(t *testing.T) {
-	var a TestApiProvider
-	h := NewHandler(&a)
+
+	settings.SetToDefault()
+	h := handlers["/Echo(name SafeString)"]
 
 	recorder := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "http://host/Echo?name=Gopher", nil)
@@ -71,26 +65,6 @@ func TestTestApiProvider(t *testing.T) {
 	if v, ok := recorder.HeaderMap["Content-Type"]; !ok || v[0] != "text/html" {
 		t.Fatalf("Content-Type header missing or invalid")
 	}
-
-	recorder = httptest.NewRecorder()
-	request, _ = http.NewRequest("GET", "http://host/path/Echo?name=Gopher", nil)
-	h.ServeHTTP(recorder, request)
-	checkCode(t, recorder, 200)
-
-	recorder = httptest.NewRecorder()
-	request, _ = http.NewRequest("GET", "http://host/", nil)
-	h.ServeHTTP(recorder, request)
-	checkCode(t, recorder, 500)
-
-	recorder = httptest.NewRecorder()
-	request, _ = http.NewRequest("GET", "http://host", nil)
-	h.ServeHTTP(recorder, request)
-	checkCode(t, recorder, 500)
-
-	recorder = httptest.NewRecorder()
-	request, _ = http.NewRequest("GET", "http://host/Nothere?name=Gopher", nil)
-	h.ServeHTTP(recorder, request)
-	checkCode(t, recorder, 500)
 
 	recorder = httptest.NewRecorder()
 	request, _ = http.NewRequest("GET", "http://host/Echo?badparam=Gopher", nil)
@@ -112,20 +86,23 @@ func TestTestApiProvider(t *testing.T) {
 	h.ServeHTTP(recorder, request)
 	checkCode(t, recorder, 500)
 
+	h = handlers["/Greeting()"]
+
 	recorder = httptest.NewRecorder()
 	request, _ = http.NewRequest("GET", "http://host/Greeting", nil)
 	h.ServeHTTP(recorder, request)
 	checkCode(t, recorder, 200)
+
+	h = handlers["/ThreeOhThree()"]
 
 	recorder = httptest.NewRecorder()
 	request, _ = http.NewRequest("GET", "http://host/ThreeOhThree", nil)
 	h.ServeHTTP(recorder, request)
 	checkCode(t, recorder, 303)
 
-	a.settings = new(Settings)
+	h = handlers["/Greeting()"]
 
-	a.settings.SetToDefault()
-	a.settings.Cache = 300
+	settings.Cache = 300
 	recorder = httptest.NewRecorder()
 	request, _ = http.NewRequest("GET", "http://host/Greeting", nil)
 	h.ServeHTTP(recorder, request)
@@ -139,8 +116,8 @@ func TestTestApiProvider(t *testing.T) {
 		t.Fatalf("Expires header invalid")
 	}
 
-	a.settings.SetToDefault()
-	a.settings.Gzip = true
+	settings.SetToDefault()
+	settings.Gzip = true
 
 	recorder = httptest.NewRecorder()
 	request, _ = http.NewRequest("GET", "http://host/Greeting", nil)
@@ -151,7 +128,7 @@ func TestTestApiProvider(t *testing.T) {
 		t.Fatalf("Content-Encoding header missing or invalid")
 	}
 
-	a.settings.SetToDefault()
+	settings.SetToDefault()
 
 	recorder = httptest.NewRecorder()
 	request, _ = http.NewRequest("GET", "http://host/Greeting", nil)
@@ -160,26 +137,4 @@ func TestTestApiProvider(t *testing.T) {
 	if _, ok := recorder.HeaderMap["Content-Encoding"]; ok {
 		t.Fatalf("Unexpected Content-Encoding")
 	}
-}
-
-type TestApiProviderPanic struct{}
-
-func (t *TestApiProviderPanic) Echo(name TestParamType) (int, error) {
-	return 42, nil
-}
-
-func TestTestApiProviderPanic(t *testing.T) {
-	var a TestApiProviderPanic
-	var err interface{} = nil
-	func() {
-		defer func() {
-			err = recover()
-		}()
-		Export((*TestApiProviderPanic).Echo, "Echo", "name")
-		NewHandler(&a)
-	}()
-	if err == nil {
-		t.Fatal("Panic expected but didn't happen.")
-	}
-	t.Logf("Panic happend %v", err)
 }
