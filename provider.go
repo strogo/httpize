@@ -79,3 +79,7 @@ func AddType(t string, f func(string) Arg) bool {
 	types[t] = f
 	return true
 }
+
+func GetHandlerForPattern(p string) http.Handler {
+	return handlers[p]
+}

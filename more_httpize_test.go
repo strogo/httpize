@@ -53,7 +53,7 @@ func checkCode(t *testing.T, r *httptest.ResponseRecorder, code int) {
 func TestTestApiProvider(t *testing.T) {
 
 	settings.SetToDefault()
-	h := handlers["/Echo(name SafeString)"]
+	h := GetHandlerForPattern("/Echo(name SafeString)")
 
 	recorder := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "http://host/Echo?name=Gopher", nil)
@@ -86,21 +86,21 @@ func TestTestApiProvider(t *testing.T) {
 	h.ServeHTTP(recorder, request)
 	checkCode(t, recorder, 500)
 
-	h = handlers["/Greeting()"]
+	h = GetHandlerForPattern("/Greeting()")
 
 	recorder = httptest.NewRecorder()
 	request, _ = http.NewRequest("GET", "http://host/Greeting", nil)
 	h.ServeHTTP(recorder, request)
 	checkCode(t, recorder, 200)
 
-	h = handlers["/ThreeOhThree()"]
+	h = GetHandlerForPattern("/ThreeOhThree()")
 
 	recorder = httptest.NewRecorder()
 	request, _ = http.NewRequest("GET", "http://host/ThreeOhThree", nil)
 	h.ServeHTTP(recorder, request)
 	checkCode(t, recorder, 303)
 
-	h = handlers["/Greeting()"]
+	h = GetHandlerForPattern("/Greeting()")
 
 	settings.Cache = 300
 	recorder = httptest.NewRecorder()

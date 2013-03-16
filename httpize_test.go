@@ -40,7 +40,7 @@ func Greet(thing SafeString) string {
 
 func TestSimpleFunc(t *testing.T) {
 
-	h := handlers["/Greet(thing SafeString)"]
+	h := GetHandlerForPattern("/Greet(thing SafeString)")
 
 	recorder := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "http://host/Greet?thing=Gopher", nil)
