@@ -39,7 +39,7 @@ func (f WebLogApi) Call(args []httpize.Arg) (io.WriterTo, *httpize.Settings, err
 
 var webLog = make([]*LogMessage, 0)
 
-var _ = httpize.Export(WebLogApi(Log), "/Log(msg *LogMessage)")
+var _ = httpize.Handle("/Log(msg *LogMessage)", WebLogApi(Log))
 
 func Log(buf *bytes.Buffer, args []httpize.Arg) error {
 	msg := args[0].(*LogMessage)
@@ -47,7 +47,7 @@ func Log(buf *bytes.Buffer, args []httpize.Arg) error {
 	return nil
 }
 
-var _ = httpize.Export(WebLogApi(Read), "/Read()")
+var _ = httpize.Handle("/Read()", WebLogApi(Read))
 
 func Read(buf *bytes.Buffer, args []httpize.Arg) error {
 	for _, msg := range webLog {

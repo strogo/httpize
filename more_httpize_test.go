@@ -20,20 +20,20 @@ func (f CommonFunc) Call(args []Arg) (io.WriterTo, *Settings, error) {
 	return writerTo, settings, err
 }
 
-var _ = Export(CommonFunc(Echo), "/Echo(name SafeString)")
+var _ = Handle("/Echo(name SafeString)", CommonFunc(Echo))
 
 func Echo(args []Arg) (io.WriterTo, error) {
 	name := args[0].(SafeString)
 	return bytes.NewBufferString("Echo " + string(name)), nil
 }
 
-var _ = Export(CommonFunc(Greeting), "/Greeting()")
+var _ = Handle("/Greeting()", CommonFunc(Greeting))
 
 func Greeting(args []Arg) (io.WriterTo, error) {
 	return bytes.NewBufferString("Hello World"), nil
 }
 
-var _ = Export(CommonFunc(ThreeOhThree), "/ThreeOhThree()")
+var _ = Handle("/ThreeOhThree()", CommonFunc(ThreeOhThree))
 
 func ThreeOhThree(args []Arg) (io.WriterTo, error) {
 	err := Non500Error{303, "See Other", "http://lookhere"}

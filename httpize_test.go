@@ -32,7 +32,7 @@ func (f SimpleFunc) Call(args []Arg) (io.WriterTo, *Settings, error) {
 	return bytes.NewBufferString(r), nil, nil
 }
 
-var _ = Export(SimpleFunc(Greet), "/Greet(thing SafeString)")
+var _ = Handle("/Greet(thing SafeString)", SimpleFunc(Greet))
 
 func Greet(thing SafeString) string {
 	return "Hello " + string(thing)
@@ -56,33 +56,3 @@ func TestSimpleFunc(t *testing.T) {
 		t.Fatalf("expect 500 error code, got: %d", recorder.Code)
 	}
 }
-
-/*
-// A MethodProvider that exports an Echo Method
-type SimpleMethodProvider struct{}
-
-var _ = Export((*SimpleMethodProvider).Echo, "Echo", "thing")
-
-func (s *SimpleMethodProvider) Echo(thing SafeString) (io.WriterTo, *Settings, error) {
-	return bytes.NewBufferString("Echo " + string(thing)), nil, nil
-}
-
-func TestSimpleMethodProvider(t *testing.T) {
-	var s SimpleMethodProvider
-	h := NewHandler(&s)
-
-	recorder := httptest.NewRecorder()
-	request, _ := http.NewRequest("GET", "http://host/Echo?thing=Gopher", nil)
-	h.ServeHTTP(recorder, request)
-	if recorder.Body.String() != "Echo Gopher" {
-		t.Fatal("incorrect response")
-	}
-
-	recorder = httptest.NewRecorder()
-	request, _ = http.NewRequest("GET", "http://host/Echo?name=Go'pher", nil)
-	h.ServeHTTP(recorder, request)
-	if recorder.Code != 500 {
-		t.Fatalf("expect 500 error code, got: %d", recorder.Code)
-	}
-}
-*/
