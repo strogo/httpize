@@ -13,29 +13,29 @@ import (
 var settings = new(Settings)
 
 // A type that will be used as a httpize.Caller
-type CommonFunc func([]Arg) (io.WriterTo, error)
+type CommonFunc func(map[string]Arg) (io.WriterTo, error)
 
-func (f CommonFunc) Call(args []Arg) (io.WriterTo, *Settings, error) {
+func (f CommonFunc) Call(args map[string]Arg) (io.WriterTo, *Settings, error) {
 	writerTo, err := f(args)
 	return writerTo, settings, err
 }
 
 var _ = Handle("/Echo(name SafeString)", CommonFunc(Echo))
 
-func Echo(args []Arg) (io.WriterTo, error) {
-	name := args[0].(SafeString)
+func Echo(args map[string]Arg) (io.WriterTo, error) {
+	name := args["name"].(SafeString)
 	return bytes.NewBufferString("Echo " + string(name)), nil
 }
 
 var _ = Handle("/Greeting()", CommonFunc(Greeting))
 
-func Greeting(args []Arg) (io.WriterTo, error) {
+func Greeting(args map[string]Arg) (io.WriterTo, error) {
 	return bytes.NewBufferString("Hello World"), nil
 }
 
 var _ = Handle("/ThreeOhThree()", CommonFunc(ThreeOhThree))
 
-func ThreeOhThree(args []Arg) (io.WriterTo, error) {
+func ThreeOhThree(args map[string]Arg) (io.WriterTo, error) {
 	err := Non500Error{303, "See Other", "http://lookhere"}
 	return nil, err
 }

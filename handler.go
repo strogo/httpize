@@ -83,7 +83,7 @@ func (h *handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	paramCount := len(h.argBuilders)
-	args := make([]Arg, paramCount)
+	args := make(map[string]Arg)
 	foundArgs, err := h.argBuilders.buildArgs(args, func(s string) (string, bool) {
 		v, ok := getParam[s]
 		if !ok {

@@ -25,17 +25,16 @@ var _ = AddType("SafeString", func(value string) Arg {
 })
 
 // A type that will be used as a httpize.Caller
-type SimpleFunc func(SafeString) string
+type SimpleFunc func(map[string]Arg) string
 
-func (f SimpleFunc) Call(args []Arg) (io.WriterTo, *Settings, error) {
-	r := f(args[0].(SafeString))
-	return bytes.NewBufferString(r), nil, nil
+func (f SimpleFunc) Call(args map[string]Arg) (io.WriterTo, *Settings, error) {
+	return bytes.NewBufferString(f(args)), nil, nil
 }
 
 var _ = Handle("/Greet(thing SafeString)", SimpleFunc(Greet))
 
-func Greet(thing SafeString) string {
-	return "Hello " + string(thing)
+func Greet(args map[string]Arg) string {
+	return "Hello " + string(args["thing"].(SafeString))
 }
 
 func TestSimpleFunc(t *testing.T) {
