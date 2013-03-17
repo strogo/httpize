@@ -20,20 +20,20 @@ func (f CommonFunc) Call(args map[string]Arg) (io.WriterTo, *Settings, error) {
 	return writerTo, settings, err
 }
 
-var _ = Handle("/Echo(name SafeString)", CommonFunc(Echo))
+var _ = Handle("/Echo?name SafeString", CommonFunc(Echo))
 
 func Echo(args map[string]Arg) (io.WriterTo, error) {
 	name := args["name"].(SafeString)
 	return bytes.NewBufferString("Echo " + string(name)), nil
 }
 
-var _ = Handle("/Greeting()", CommonFunc(Greeting))
+var _ = Handle("/Greeting", CommonFunc(Greeting))
 
 func Greeting(args map[string]Arg) (io.WriterTo, error) {
 	return bytes.NewBufferString("Hello World"), nil
 }
 
-var _ = Handle("/ThreeOhThree()", CommonFunc(ThreeOhThree))
+var _ = Handle("/ThreeOhThree", CommonFunc(ThreeOhThree))
 
 func ThreeOhThree(args map[string]Arg) (io.WriterTo, error) {
 	err := Non500Error{303, "See Other", "http://lookhere"}
@@ -53,7 +53,7 @@ func checkCode(t *testing.T, r *httptest.ResponseRecorder, code int) {
 func TestTestApiProvider(t *testing.T) {
 
 	settings.SetToDefault()
-	h := GetHandlerForPattern("/Echo(name SafeString)")
+	h := GetHandlerForPattern("/Echo?name SafeString")
 
 	recorder := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "http://host/Echo?name=Gopher", nil)
@@ -86,21 +86,21 @@ func TestTestApiProvider(t *testing.T) {
 	h.ServeHTTP(recorder, request)
 	checkCode(t, recorder, 500)
 
-	h = GetHandlerForPattern("/Greeting()")
+	h = GetHandlerForPattern("/Greeting")
 
 	recorder = httptest.NewRecorder()
 	request, _ = http.NewRequest("GET", "http://host/Greeting", nil)
 	h.ServeHTTP(recorder, request)
 	checkCode(t, recorder, 200)
 
-	h = GetHandlerForPattern("/ThreeOhThree()")
+	h = GetHandlerForPattern("/ThreeOhThree")
 
 	recorder = httptest.NewRecorder()
 	request, _ = http.NewRequest("GET", "http://host/ThreeOhThree", nil)
 	h.ServeHTTP(recorder, request)
 	checkCode(t, recorder, 303)
 
-	h = GetHandlerForPattern("/Greeting()")
+	h = GetHandlerForPattern("/Greeting")
 
 	settings.Cache = 300
 	recorder = httptest.NewRecorder()

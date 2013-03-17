@@ -11,18 +11,18 @@ import (
 var handlers = make(map[string]http.Handler)
 
 // Add pattern to be handled. p: is a pattern to be handled. Patterns are like
-// [path/]name([arguments]). If path/ is ommitted "/" is used. Arguments are
-// a comma seprated list of two words. Where words are seperated by whitespace.
+// [path/]name[?arguments]. If path/ is ommitted "/" is used. Arguments are
+// a ampersand seprated list of two words. Where words are seperated by whitespace.
 // First word is the key used to get a value from query part of the URL.
 // The second word is a type registered with AddType. The patttern will match urls
 // [path/]name?arg1_key=...&arg2_key=... etc. c is a Caller interface that
 // will be called when pattern matches a given HTTP request. It will be
 // passed arguments as specified by the pattern. Always returns true.
 func Handle(p string, c Caller) bool {
-	re, _ := regexp.Compile("^([^\\(]+)\\(([*,0-9,a-z,A-Z,_, ,\t]*)\\)$")
+	re, _ := regexp.Compile("^([^\\?]+)\\??([&,*,0-9,a-z,A-Z,_, ,\t]*)$")
 	parts := re.FindStringSubmatch(p)
 
-	if len(parts) != 3 {
+	if parts[0] != p {
 		log.Printf("httpize.Export handler pattern wrong. %s", p)
 		return true
 	}
@@ -31,7 +31,7 @@ func Handle(p string, c Caller) bool {
 	path := strings.Join(pathParts[0:l-1], "/")
 	name := pathParts[l-1]
 
-	params := strings.Split(parts[2], ",")
+	params := strings.Split(parts[2], "&")
 	re, _ = regexp.Compile("^\\s*$")
 	if re.MatchString(parts[2]) {
 		params = []string{}
@@ -41,7 +41,7 @@ func Handle(p string, c Caller) bool {
 	for i, s := range params {
 		re, _ = regexp.Compile("([0-9,a-z,A-Z,_]+)\\s+([*,0-9,a-z,A-Z,_]+)")
 		paramParts := re.FindStringSubmatch(s)
-		if len(paramParts) != 3 {
+		if parts[1] == "" || parts[2] == "" {
 			log.Printf("httpize.Export handler pattern wrong. %s", p)
 			return true
 		}
