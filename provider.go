@@ -22,7 +22,7 @@ func Handle(p string, c Caller) bool {
 	re, _ := regexp.Compile("^([^\\?]+)\\??([&,*,0-9,a-z,A-Z,_, ,\t]*)$")
 	parts := re.FindStringSubmatch(p)
 
-	if parts[0] != p {
+	if parts == nil || parts[0] != p {
 		log.Printf("httpize.Export handler pattern wrong. %s", p)
 		return true
 	}
