@@ -20,25 +20,25 @@ func (f CommonFunc) Call(args map[string]Arg) (io.WriterTo, *Settings, error) {
 	return writerTo, settings, err
 }
 
-var _ = Handle("/Echo?name SafeString", CommonFunc(Echo))
-
 func Echo(args map[string]Arg) (io.WriterTo, error) {
 	name := args["name"].(SafeString)
 	return bytes.NewBufferString("Echo " + string(name)), nil
 }
 
-var _ = Handle("/Greeting", CommonFunc(Greeting))
+var _ = Handle("/Echo?name SafeString", CommonFunc(Echo))
 
 func Greeting(args map[string]Arg) (io.WriterTo, error) {
 	return bytes.NewBufferString("Hello World"), nil
 }
 
-var _ = Handle("/ThreeOhThree", CommonFunc(ThreeOhThree))
+var _ = Handle("/Greeting", CommonFunc(Greeting))
 
 func ThreeOhThree(args map[string]Arg) (io.WriterTo, error) {
 	err := Non500Error{303, "See Other", "http://lookhere"}
 	return nil, err
 }
+
+var _ = Handle("/ThreeOhThree", CommonFunc(ThreeOhThree))
 
 var count int = 0
 

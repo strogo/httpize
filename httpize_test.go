@@ -31,11 +31,11 @@ func (f SimpleFunc) Call(args map[string]Arg) (io.WriterTo, *Settings, error) {
 	return bytes.NewBufferString(f(args)), nil, nil
 }
 
-var _ = Handle("/Greet?thing SafeString", SimpleFunc(Greet))
-
 func Greet(args map[string]Arg) string {
 	return "Hello " + string(args["thing"].(SafeString))
 }
+
+var _ = Handle("/Greet?thing SafeString", SimpleFunc(Greet))
 
 func TestSimpleFunc(t *testing.T) {
 

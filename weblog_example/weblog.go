@@ -29,27 +29,25 @@ var _ = httpize.AddType("*LogMessage", func(value string) httpize.Arg {
 	return &LogMessage{time.Now(), value}
 })
 
-type WebLogApi func(*bytes.Buffer, []httpize.Arg) error
+var webLog = make([]*LogMessage, 0)
 
-func (f WebLogApi) Call(args []httpize.Arg) (io.WriterTo, *httpize.Settings, error) {
+type WebLogApi func(*bytes.Buffer, map[string]httpize.Arg) error
+
+func (f WebLogApi) Call(args map[string]httpize.Arg) (io.WriterTo, *httpize.Settings, error) {
 	buf := bytes.NewBufferString("")
 	err := f(buf, args)
 	return buf, nil, err
 }
 
-var webLog = make([]*LogMessage, 0)
-
-var _ = httpize.Handle("/Log(msg *LogMessage)", WebLogApi(Log))
-
-func Log(buf *bytes.Buffer, args []httpize.Arg) error {
-	msg := args[0].(*LogMessage)
+func Log(buf *bytes.Buffer, args map[string]httpize.Arg) error {
+	msg := args["msg"].(*LogMessage)
 	webLog = append(webLog, msg)
 	return nil
 }
 
-var _ = httpize.Handle("/Read()", WebLogApi(Read))
+var _ = httpize.Handle("/Log?msg *LogMessage", WebLogApi(Log))
 
-func Read(buf *bytes.Buffer, args []httpize.Arg) error {
+func Read(buf *bytes.Buffer, args map[string]httpize.Arg) error {
 	for _, msg := range webLog {
 		_, err := buf.WriteString(msg.String())
 		if err != nil {
@@ -58,6 +56,8 @@ func Read(buf *bytes.Buffer, args []httpize.Arg) error {
 	}
 	return nil
 }
+
+var _ = httpize.Handle("/Read", WebLogApi(Read))
 
 func main() {
 	http.ListenAndServe(":9001", nil)
